@@ -31,6 +31,14 @@ h1{font-size:19px;font-weight:600;margin:0;letter-spacing:-.01em}
 .chips::-webkit-scrollbar{display:none}
 .chip{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 12px;font-size:13px;white-space:nowrap}
 .chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.proj{margin:10px 0 0}
+.seg.proj button{font-size:15px}
+.est{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+.est table{border-collapse:collapse;font-size:12.5px;min-width:560px;width:100%}
+.est th,.est td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+.est th:first-child,.est td:first-child{text-align:left;white-space:normal;min-width:170px}
+.est th{font-size:11px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.04em}
+.est tfoot td{font-weight:600}
 .tabs{display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid var(--line);margin-top:6px}
 .tab{background:none;border:0;border-bottom:2px solid transparent;padding:10px 0;color:var(--muted);font-weight:500}
 .tab[aria-selected="true"]{color:var(--ink);border-color:var(--accent)}
@@ -77,7 +85,8 @@ input,select,textarea{width:100%;border:1px solid var(--line);background:var(--b
     <div><h1>Учёт AyBerg · АҚ СҰЛТАН</h1><div class="status" id="status">Загрузка…</div></div>
     <button class="csv" id="csv" hidden>Скачать CSV</button>
   </div>
-  <div class="chips" id="chips"></div>
+  <div class="chips" id="chips" hidden></div>
+  <div class="seg proj" id="projects"></div>
   <div class="tabs" role="tablist" id="tabs"></div>
 </header>
 <main id="main"></main>
@@ -87,28 +96,31 @@ input,select,textarea{width:100%;border:1px solid var(--line);background:var(--b
 
 <script>
 const COMPANIES=['АҚ СҰЛТАН'];
-const CATS=['Материалы','Зарплата','Налоги','Транспорт','Аренда','Услуги','Прочее'];
+const PROJECTS=['БОК','Нац банк'];
+const EST_BOK={"date": "12.06.2026", "title": "БОК «Омарова» — монолитные работы", "rows": [["Срубка оголовок свай", "шт", 452, 1500, 678000, 1300, 587600, 93517.24, 584482.76, -3117.24, 58448.28, -61565.52], ["Щебеночная подготовка с трамбовкой", "м3", 102.78, 3500, 359730, 0, 0, 49617.93, 310112.07, 310112.07, 31011.21, 279100.86], ["Бетонная подготовка", "м2", 991, 5000, 4955000, 1000, 991000, 683448.28, 4271551.72, 3280551.72, 427155.17, 2853396.55], ["Вертикальная обмазочная гидроизоляция в 2 слоя", "м2", 1001.2, 500, 500600, 0, 0, 69048.28, 431551.72, 431551.72, 43155.17, 388396.55], ["Фундаменты (стаканы, лента)", "м3", 184.26, 29000, 5343540, 17000, 3132420, 737040, 4606500, 1474080, 460650.0, 1013430.0], ["Фундаменты (плита)", "м3", 619.91, 28000, 17357480, 8500, 5269235, 2394135.17, 14963344.83, 9694109.83, 1496334.48, 8197775.34], ["Вертикальная конструкция (ДЖМ, СТМ, Лшм) высотой до 3-х", "м3", 152.92, 50000, 7646000.0, 24000, 3670080.0, 1054620.69, 6591379.31, 2921299.31, 659137.93, 2262161.38], ["Вертикальная конструкция (ДЖМ, СТМ, Лшм) высотой выше 3- х метров", "м3", 491.31, 49000, 24074190, 24000, 11791440, 3320577.93, 20753612.07, 8962172.07, 2075361.21, 6886810.86], ["Плиты перекрытья без ригеля (Бм)- высотой до 3-х метров", "м3", 40.52, 50000, 2026000.0, 24000, 972480.0, 279448.28, 1746551.72, 774071.72, 174655.17, 599416.55], ["Плиты перекрытья с ригеля (Бм)- от до 3-х метров до 5 метров", "м3", 1921, 52000, 99892000, 24000, 46104000, 13778206.9, 86113793.1, 40009793.1, 8611379.31, 31398413.79], ["подбетонка пола", "м2", 1000, 5000, 5000000, 250, 250000, 689655.17, 4310344.83, 4060344.83, 431034.48, 3629310.34], ["полы", "м3", 152, 30000, 4560000, 8500, 1292000, 628965.52, 3931034.48, 2639034.48, 393103.45, 2245931.03], ["Входные группы, монолитная лестница", "м3", 87.05, 50000, 4352500, 24000, 2089200, 600344.83, 3752155.17, 1662955.17, 375215.52, 1287739.66]]};
+const CATS=['ПНСВ','Откат','Материалы','Зарплата','Налоги','Транспорт','Аренда','Услуги','Прочее'];
 const DOCS=['Чек','Акт','Счёт-фактура','Прочее'];
 const TABS=[['ops','Операции'],['acts','Акты'],['calc','Расчёт']];
-const S={entries:[],company:'Все',tab:'ops',sheet:null,loaded:false,db:null};
+let savedP='';try{savedP=localStorage.getItem('project')||''}catch(e){}
+const S={entries:[],project:PROJECTS.includes(savedP)?savedP:PROJECTS[0],company:'Все',tab:'ops',sheet:null,loaded:false,db:null};
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmt=n=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2}).format(n)+' ₸';
+const fmt0=n=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}).format(n);
 const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
 const dayLabel=d=>{try{return new Date(d+'T00:00').toLocaleDateString('ru-RU',{day:'numeric',month:'long',year:'numeric'})}catch(e){return d}};
 let toastT;
 function toast(m){const t=$('toast');t.textContent=m;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,2400)}
 
 function filtered(){
-  let l=S.entries.filter(e=>S.company==='Все'||e.company===S.company);
+  let l=S.entries.filter(e=>(e.project||PROJECTS[0])===S.project);
   if(S.tab==='acts')l=l.filter(e=>e.docType==='Акт');
   return l.sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.createdAt||0)-(a.createdAt||0));
 }
 function totals(l){let i=0,o=0;l.forEach(e=>{if(e.kind==='income')i+=+e.amount||0;else o+=+e.amount||0});return{i,o,b:i-o}}
 
 function render(){
-  $('chips').hidden=COMPANIES.length===1;
-  $('chips').innerHTML=['Все',...COMPANIES].map(c=>`<button class="chip" data-co="${esc(c)}" aria-pressed="${S.company===c}">${esc(c)}</button>`).join('');
+  $('projects').innerHTML=PROJECTS.map(p=>`<button type="button" data-proj="${esc(p)}" aria-pressed="${S.project===p}">${esc(p)}</button>`).join('');
   $('tabs').innerHTML=TABS.map(([k,n])=>`<button class="tab" role="tab" data-tab="${k}" aria-selected="${S.tab===k}">${n}</button>`).join('');
   const m=$('main');
   if(S.tab==='calc'){m.innerHTML=renderCalc();return}
@@ -128,27 +140,42 @@ function render(){
   m.innerHTML=h;
 }
 function renderCalc(){
-  const cos=S.company==='Все'?COMPANIES:[S.company];
+  const l=S.entries.filter(e=>(e.project||PROJECTS[0])===S.project),t=totals(l);
+  const by={};l.filter(e=>e.kind!=='income').forEach(e=>{const k=e.category||'Прочее';by[k]=(by[k]||0)+(+e.amount||0)});
+  const ks=Object.entries(by).sort((a,b)=>b[1]-a[1]);
   let h='';
-  cos.forEach(c=>{
-    const l=S.entries.filter(e=>e.company===c),t=totals(l);
-    const by={};l.filter(e=>e.kind!=='income').forEach(e=>{const k=e.category||'Прочее';by[k]=(by[k]||0)+(+e.amount||0)});
-    h+=`<div class="co"><h3>${esc(c)}</h3><div class="kv"><span>Приход</span><b class="num in">${fmt(t.i)}</b></div><div class="kv"><span>Расход</span><b class="num out">${fmt(t.o)}</b></div><div class="kv"><span>Баланс</span><b class="num ${t.b<0?'out':'in'}">${fmt(t.b)}</b></div>`;
-    const ks=Object.entries(by).sort((a,b)=>b[1]-a[1]);
-    if(ks.length)h+=`<div class="day" style="margin-top:10px">Расходы по статьям</div>`+ks.map(([k,v])=>`<div class="kv"><span>${esc(k)}</span><span class="num">${fmt(v)}</span></div>`).join('');
-    h+='</div>';
-  });
-  return h;
+  if(S.project==='БОК'){
+    const R=EST_BOK.rows,sm=i=>R.reduce((a,r)=>a+r[i],0);
+    const T={vat:sm(4),brig:sm(6),nds:sm(7),net:sm(8),pr:sm(9),ten:sm(10),prn:sm(11)};
+    h+=`<div class="co"><h3>Смета · ${esc(EST_BOK.title)}</h3><div class="status" style="margin-bottom:8px">Расчёт от ${EST_BOK.date}</div>
+    <div class="kv"><span>Сумма с НДС</span><b class="num">${fmt(T.vat)}</b></div>
+    <div class="kv"><span>НДС</span><span class="num">${fmt(T.nds)}</span></div>
+    <div class="kv"><span>Сумма без НДС</span><span class="num">${fmt(T.net)}</span></div>
+    <div class="kv"><span>Бригада</span><span class="num out">${fmt(T.brig)}</span></div>
+    <div class="kv"><span>Наша прибыль</span><b class="num in">${fmt(T.pr)}</b></div>
+    <div class="kv"><span>Минус 10%</span><span class="num out">${fmt(T.ten)}</span></div>
+    <div class="kv"><span>Прибыль −10%</span><b class="num in">${fmt(T.prn)}</b></div>
+    <div class="kv"><span>Фактические расходы</span><span class="num out">${fmt(t.o)}</span></div>
+    <div class="kv"><span>Прибыль −10% за вычетом расходов</span><b class="num ${T.prn-t.o<0?'out':'in'}">${fmt(T.prn-t.o)}</b></div></div>
+    <div class="day">Позиции сметы</div><div class="est"><table><thead><tr><th>Наименование</th><th>Кол-во</th><th>Сумма с НДС</th><th>Бригада</th><th>Без НДС</th><th>Прибыль</th><th>Прибыль −10%</th></tr></thead><tbody>`+
+    R.map(r=>`<tr><td>${esc(r[0])}</td><td class="num">${fmt0(r[2])} ${esc(r[1]||'')}</td><td class="num">${fmt0(r[4])}</td><td class="num">${fmt0(r[6])}</td><td class="num">${fmt0(r[8])}</td><td class="num ${r[9]<0?'out':''}">${fmt0(r[9])}</td><td class="num ${r[11]<0?'out':''}">${fmt0(r[11])}</td></tr>`).join('')+
+    `</tbody><tfoot><tr><td>Итого</td><td></td><td class="num">${fmt0(T.vat)}</td><td class="num">${fmt0(T.brig)}</td><td class="num">${fmt0(T.net)}</td><td class="num">${fmt0(T.pr)}</td><td class="num">${fmt0(T.prn)}</td></tr></tfoot></table></div><div class="day">Факт по записям</div>`;
+  }else{
+    h+=`<div class="empty" style="margin-top:0"><b>Сметы по проекту «${esc(S.project)}» нет</b>Пришлите файл со сметой, и я добавлю его в расчёт.</div><div class="day">Факт по записям</div>`;
+  }
+  h+=`<div class="co"><h3>${esc(S.project)}</h3><div class="kv"><span>Приход</span><b class="num in">${fmt(t.i)}</b></div><div class="kv"><span>Расход</span><b class="num out">${fmt(t.o)}</b></div><div class="kv"><span>Баланс</span><b class="num ${t.b<0?'out':'in'}">${fmt(t.b)}</b></div>`;
+  if(ks.length)h+=`<div class="day" style="margin-top:10px">Расходы по статьям</div>`+ks.map(([k,v])=>`<div class="kv"><span>${esc(k)}</span><span class="num">${fmt(v)}</span></div>`).join('');
+  return h+'</div>';
 }
-
 function openSheet(e){
-  const x=e||{kind:'expense',date:today(),company:S.company==='Все'?COMPANIES[0]:S.company,docType:'Чек',category:CATS[0],amount:'',party:'',note:''};
+  const x=e||{kind:'expense',date:today(),company:S.company==='Все'?COMPANIES[0]:S.company,docType:'Чек',category:CATS[0],project:S.project,amount:'',party:'',note:''};
   S.sheet={id:e?.id,kind:x.kind};
   const opt=(a,v)=>a.map(o=>`<option${o===v?' selected':''}>${esc(o)}</option>`).join('');
   $('overlay').innerHTML=`<div class="scrim" id="scrim"><form class="sheet" id="form" novalidate>
     <h2>${e?'Запись':'Новая запись'}</h2>
     <div class="seg"><button type="button" data-kind="expense" aria-pressed="${x.kind!=='income'}">Расход</button><button type="button" data-kind="income" aria-pressed="${x.kind==='income'}">Приход</button></div>
     <label for="f-amount">Сумма, ₸</label><input id="f-amount" inputmode="decimal" autocomplete="off" value="${esc(x.amount)}" placeholder="0">
+    <label for="f-project">Проект</label><select id="f-project">${opt(PROJECTS,x.project||S.project)}</select>
     <label for="f-company">Компания</label><select id="f-company">${opt(COMPANIES,x.company)}</select>
     <div class="two"><div><label for="f-date">Дата</label><input id="f-date" type="date" value="${esc(x.date)}"></div>
     <div><label for="f-doc">Документ</label><select id="f-doc">${opt(DOCS,x.docType)}</select></div></div>
@@ -166,7 +193,7 @@ async function save(){
   const amount=parseFloat($('f-amount').value.replace(/\s/g,'').replace(',','.'));
   if(!(amount>0)){$('err').textContent='Введите сумму больше нуля.';return}
   if(!S.db){$('err').textContent='Хранилище недоступно. Войдите в аккаунт Claude и откройте страницу снова.';return}
-  const d={kind:S.sheet.kind,amount,company:$('f-company').value,date:$('f-date').value||today(),docType:$('f-doc').value,party:$('f-party').value.trim(),category:$('f-cat').value,note:$('f-note').value.trim()};
+  const d={project:$('f-project').value,kind:S.sheet.kind,amount,company:$('f-company').value,date:$('f-date').value||today(),docType:$('f-doc').value,party:$('f-party').value.trim(),category:$('f-cat').value,note:$('f-note').value.trim()};
   try{
     if(S.sheet.id)await S.db.collection('entries').doc(S.sheet.id).update(d);
     else await S.db.collection('entries').add({...d,createdAt:Date.now()});
@@ -176,7 +203,7 @@ async function save(){
 
 document.addEventListener('click',async ev=>{
   const t=ev.target.closest('button,.scrim');if(!t)return;
-  if(t.dataset.co){S.company=t.dataset.co;render()}
+  if(t.dataset.proj){S.project=t.dataset.proj;try{localStorage.setItem('project',S.project)}catch(e){}render()}
   else if(t.dataset.tab){S.tab=t.dataset.tab;render()}
   else if(t.id==='add')openSheet();
   else if(t.dataset.id)openSheet(S.entries.find(e=>e.id===t.dataset.id));
@@ -193,12 +220,12 @@ document.addEventListener('submit',ev=>{ev.preventDefault();save()});
 let dl=null;
 async function exportCsv(){
   const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
-  const rows=[['Дата','Тип','Компания','Контрагент','Статья','Документ','Сумма','Комментарий']];
-  filtered0().forEach(e=>rows.push([e.date,e.kind==='income'?'Приход':'Расход',e.company,e.party,e.category,e.docType,e.amount,e.note]));
+  const rows=[['Дата','Проект','Тип','Компания','Контрагент','Статья','Документ','Сумма','Комментарий']];
+  filtered0().forEach(e=>rows.push([e.date,e.project||PROJECTS[0],e.kind==='income'?'Приход':'Расход',e.company,e.party,e.category,e.docType,e.amount,e.note]));
   const csv='﻿'+rows.map(r=>r.map(q).join(';')).join('\r\n');
-  try{await dl.save({filename:'uchet-ayberg-'+today()+'.csv',data:csv});toast('Файл готов')}catch(e){if(e&&e.code!=='declined')toast('Не удалось сохранить файл')}
+  try{await dl.save({filename:'uchet-'+S.project+'-'+today()+'.csv',data:csv});toast('Файл готов')}catch(e){if(e&&e.code!=='declined')toast('Не удалось сохранить файл')}
 }
-function filtered0(){return S.entries.filter(e=>S.company==='Все'||e.company===S.company).sort((a,b)=>(a.date||'').localeCompare(b.date||''))}
+function filtered0(){return S.entries.filter(e=>(e.project||PROJECTS[0])===S.project).sort((a,b)=>(a.date||'').localeCompare(b.date||''))}
 
 render();
 (async()=>{
