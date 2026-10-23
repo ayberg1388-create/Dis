@@ -74,7 +74,7 @@ input,select,textarea{width:100%;border:1px solid var(--line);background:var(--b
 
 <header>
   <div class="top">
-    <div><h1>Учёт AyBerg</h1><div class="status" id="status">Загрузка…</div></div>
+    <div><h1>Учёт AyBerg · АҚ СҰЛТАН</h1><div class="status" id="status">Загрузка…</div></div>
     <button class="csv" id="csv" hidden>Скачать CSV</button>
   </div>
   <div class="chips" id="chips"></div>
@@ -86,7 +86,7 @@ input,select,textarea{width:100%;border:1px solid var(--line);background:var(--b
 <div id="toast" class="toast" hidden></div>
 
 <script>
-const COMPANIES=['АҚ СҰЛТАН','Прайм Строй Монолит','Алем Орда Инвест','ИП AyBerg','ИП LEMON'];
+const COMPANIES=['АҚ СҰЛТАН'];
 const CATS=['Материалы','Зарплата','Налоги','Транспорт','Аренда','Услуги','Прочее'];
 const DOCS=['Чек','Акт','Счёт-фактура','Прочее'];
 const TABS=[['ops','Операции'],['acts','Акты'],['calc','Расчёт']];
@@ -107,6 +107,7 @@ function filtered(){
 function totals(l){let i=0,o=0;l.forEach(e=>{if(e.kind==='income')i+=+e.amount||0;else o+=+e.amount||0});return{i,o,b:i-o}}
 
 function render(){
+  $('chips').hidden=COMPANIES.length===1;
   $('chips').innerHTML=['Все',...COMPANIES].map(c=>`<button class="chip" data-co="${esc(c)}" aria-pressed="${S.company===c}">${esc(c)}</button>`).join('');
   $('tabs').innerHTML=TABS.map(([k,n])=>`<button class="tab" role="tab" data-tab="${k}" aria-selected="${S.tab===k}">${n}</button>`).join('');
   const m=$('main');
