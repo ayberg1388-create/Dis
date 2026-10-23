@@ -42,6 +42,9 @@ h1{font-size:19px;font-weight:600;margin:0;letter-spacing:-.01em}
 .tabs{display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid var(--line);margin-top:6px}
 .tab{background:none;border:0;border-bottom:2px solid transparent;padding:10px 0;color:var(--muted);font-weight:500}
 .tab[aria-selected="true"]{color:var(--ink);border-color:var(--accent)}
+.pot{margin:14px 0 0}
+.bal{font-size:13px;color:var(--muted);margin-top:6px}
+.bal b{font-family:var(--mono)}
 .sum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-block:14px}
 .sum div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px;min-width:0}
 .sum small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em}
@@ -117,6 +120,8 @@ function filtered(){
   if(S.tab==='acts')l=l.filter(e=>e.docType==='Акт');
   return l.sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.createdAt||0)-(a.createdAt||0));
 }
+const potential=p=>p==='БОК'?EST_BOK.rows.reduce((a,r)=>a+r[11],0):0;
+function balance(p,skipId){const l=S.entries.filter(e=>(e.project||PROJECTS[0])===p&&e.id!==skipId),t=totals(l);return potential(p)+t.b}
 function totals(l){let i=0,o=0;l.forEach(e=>{if(e.kind==='income')i+=+e.amount||0;else o+=+e.amount||0});return{i,o,b:i-o}}
 
 function render(){
@@ -125,7 +130,8 @@ function render(){
   const m=$('main');
   if(S.tab==='calc'){m.innerHTML=renderCalc();return}
   const l=filtered(),t=totals(l);
-  let h=`<div class="sum"><div><small>Приход</small><b class="num in">${fmt(t.i)}</b></div><div><small>Расход</small><b class="num out">${fmt(t.o)}</b></div><div><small>Баланс</small><b class="num ${t.b<0?'out':'in'}">${fmt(t.b)}</b></div></div>`;
+  const pot=potential(S.project);
+  let h=(pot?`<div class="co pot"><div class="kv"><span>Потенциальная прибыль</span><b class="num in">${fmt(pot)}</b></div><div class="kv"><span>Баланс (прибыль − расходы)</span><b class="num ${balance(S.project)<0?'out':'in'}">${fmt(balance(S.project))}</b></div></div>`:'')+`<div class="sum"><div><small>Приход</small><b class="num in">${fmt(t.i)}</b></div><div><small>Расход</small><b class="num out">${fmt(t.o)}</b></div><div><small>Баланс</small><b class="num ${t.b<0?'out':'in'}">${fmt(t.b)}</b></div></div>`;
   if(!l.length){
     h+=`<div class="empty"><b>${S.loaded?(S.tab==='acts'?'Актов пока нет':'Записей пока нет'):'Загрузка…'}</b>${S.loaded?'Нажмите «Добавить» или пришлите чек Claude в чат: он добавит запись сюда.':''}</div>`;
   }else{
@@ -175,6 +181,7 @@ function openSheet(e){
     <h2>${e?'Запись':'Новая запись'}</h2>
     <div class="seg"><button type="button" data-kind="expense" aria-pressed="${x.kind!=='income'}">Расход</button><button type="button" data-kind="income" aria-pressed="${x.kind==='income'}">Приход</button></div>
     <label for="f-amount">Сумма, ₸</label><input id="f-amount" inputmode="decimal" autocomplete="off" value="${esc(x.amount)}" placeholder="0">
+    <div class="bal" id="bal"></div>
     <label for="f-project">Проект</label><select id="f-project">${opt(PROJECTS,x.project||S.project)}</select>
     <label for="f-company">Компания</label><select id="f-company">${opt(COMPANIES,x.company)}</select>
     <div class="two"><div><label for="f-date">Дата</label><input id="f-date" type="date" value="${esc(x.date)}"></div>
@@ -185,7 +192,14 @@ function openSheet(e){
     <div class="err" id="err"></div>
     <div class="act">${e?'<button type="button" class="del" id="del">Удалить</button>':''}<button type="button" id="cancel">Отмена</button><button type="submit" class="ok">Сохранить</button></div>
   </form></div>`;
+  updBal();
   if(!e)$('f-amount').focus();
+}
+function updBal(){
+  const el=$('bal');if(!el)return;
+  const a=parseFloat(($('f-amount').value||'').replace(/\s/g,'').replace(',','.'))||0,p=$('f-project').value;
+  const b=balance(p,S.sheet.id)+(S.sheet.kind==='income'?a:-a);
+  el.innerHTML=`Баланс ${esc(p)} после записи: <b class="${b<0?'out':'in'}">${fmt(b)}</b>`+(potential(p)?' (потенциальная прибыль − расходы)':'');
 }
 function closeSheet(){$('overlay').innerHTML='';S.sheet=null}
 
@@ -207,7 +221,7 @@ document.addEventListener('click',async ev=>{
   else if(t.dataset.tab){S.tab=t.dataset.tab;render()}
   else if(t.id==='add')openSheet();
   else if(t.dataset.id)openSheet(S.entries.find(e=>e.id===t.dataset.id));
-  else if(t.dataset.kind){S.sheet.kind=t.dataset.kind;document.querySelectorAll('.seg button').forEach(b=>b.setAttribute('aria-pressed',b===t))}
+  else if(t.dataset.kind){S.sheet.kind=t.dataset.kind;document.querySelectorAll('#form .seg button').forEach(b=>b.setAttribute('aria-pressed',b===t));updBal()}
   else if(t.id==='cancel'||(t.id==='scrim'&&ev.target===t))closeSheet();
   else if(t.id==='del'){
     if(t.dataset.sure!=='1'){t.dataset.sure='1';t.textContent='Точно удалить?';return}
@@ -215,6 +229,8 @@ document.addEventListener('click',async ev=>{
   }
   else if(t.id==='csv')exportCsv();
 });
+document.addEventListener('input',ev=>{if(ev.target.id==='f-amount')updBal()});
+document.addEventListener('change',ev=>{if(ev.target.id==='f-project')updBal()});
 document.addEventListener('submit',ev=>{ev.preventDefault();save()});
 
 let dl=null;
