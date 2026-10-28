@@ -66,6 +66,11 @@ h1{font-size:15px;font-weight:600;margin:0;letter-spacing:.06em;text-transform:u
 .co h3{margin:0 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--accent)}
 .kv{display:flex;justify-content:space-between;gap:8px;font-size:13.5px;padding-block:3px}
 .kv span:first-child{color:var(--muted);text-transform:uppercase;font-size:11.5px;letter-spacing:.03em}
+.fabs{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));display:flex;gap:8px;z-index:6}
+.fabs .fab{position:static}
+.fab.cam{background:var(--surface);color:var(--accent);border:1px solid var(--accent)}
+.shot{display:block;max-width:100%;max-height:150px;margin:0 auto 10px;border:1px solid var(--line)}
+.hint{font-size:12px;color:var(--warn);margin-bottom:8px}
 .fab{text-transform:uppercase;letter-spacing:.05em;position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--accent);color:var(--accent-ink);border:0;border-radius:0;padding:14px 20px;font-weight:600;z-index:6}
 .scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:20;display:flex;align-items:flex-end}
 .sheet{background:var(--surface);width:100%;max-height:92%;overflow-y:auto;border-radius:0;padding:16px max(16px,env(safe-area-inset-left,0px)) calc(16px + env(safe-area-inset-bottom,0px))}
@@ -94,7 +99,8 @@ input,select,textarea{width:100%;border:1px solid var(--line);background:var(--b
   <div class="tabs" role="tablist" id="tabs"></div>
 </header>
 <main id="main"></main>
-<button class="fab" id="add">+ Добавить</button>
+<div class="fabs"><button class="fab cam" id="photo">Фото чека</button><button class="fab" id="add">+ Добавить</button></div>
+<input type="file" id="cam" accept="image/*" capture="environment" hidden>
 <div id="overlay"></div>
 <div id="toast" class="toast" hidden></div>
 
@@ -215,12 +221,13 @@ function renderCalc(){
   if(ks.length)h+=`<div class="day" style="margin-top:10px">Расходы по статьям</div>`+ks.map(([k,v])=>`<div class="kv"><span>${esc(k)}</span><span class="num">${fmt(v)}</span></div>`).join('');
   return h+'</div>'+pie('Фактические расходы по статьям',ks);
 }
-function openSheet(e){
-  const x=e||{kind:'expense',date:today(),company:S.company==='Все'?COMPANIES[0]:S.company,docType:'Чек',category:CATS[0],project:S.project,amount:'',party:'',note:''};
+function openSheet(e,pre){
+  const x=e||{kind:'expense',date:today(),company:S.company==='Все'?COMPANIES[0]:S.company,docType:'Чек',category:CATS[0],project:S.project,amount:'',party:'',note:'',...(pre||{})};
   S.sheet={id:e?.id,kind:x.kind};
   const opt=(a,v)=>a.map(o=>`<option${o===v?' selected':''}>${esc(o)}</option>`).join('');
   $('overlay').innerHTML=`<div class="scrim" id="scrim"><form class="sheet" id="form" novalidate>
     <h2>${e?'Запись':'Новая запись'}</h2>
+    ${pre&&pre._img?`<img class="shot" src="${pre._img}" alt="Фото чека">`:''}${pre&&pre._hint?`<div class="hint">${esc(pre._hint)}</div>`:''}
     <div class="seg"><button type="button" data-kind="expense" aria-pressed="${x.kind!=='income'}">Расход</button><button type="button" data-kind="income" aria-pressed="${x.kind==='income'}">Приход</button></div>
     <label for="f-amount">Сумма, ₸</label><input id="f-amount" inputmode="decimal" autocomplete="off" value="${esc(x.amount)}" placeholder="0">
     <div class="bal" id="bal"></div>
@@ -267,6 +274,7 @@ document.addEventListener('click',async ev=>{
   if(t.dataset.proj){S.project=t.dataset.proj;try{localStorage.setItem('project',S.project)}catch(e){}render()}
   else if(t.dataset.tab){S.tab=t.dataset.tab;render()}
   else if(t.id==='add')openSheet();
+  else if(t.id==='photo')$('cam').click();
   else if(t.dataset.id)openSheet(S.entries.find(e=>e.id===t.dataset.id));
   else if(t.dataset.kind){S.sheet.kind=t.dataset.kind;document.querySelectorAll('#form .seg button').forEach(b=>b.setAttribute('aria-pressed',b===t));updBal()}
   else if(t.id==='cancel'||(t.id==='scrim'&&ev.target===t))closeSheet();
@@ -280,6 +288,36 @@ document.addEventListener('input',ev=>{if(ev.target.id==='f-amount')updBal()});
 document.addEventListener('change',ev=>{if(ev.target.id==='f-project'||ev.target.id==='f-doc')updBal()});
 document.addEventListener('submit',ev=>{ev.preventDefault();save()});
 
+const SCAN_PROMPT=`На изображении чек, квитанция или перевод из Казахстана (валюта тенге ₸). Извлеки данные для записи расхода и верни ТОЛЬКО JSON без пояснений:
+{"amount": число итоговой суммы в тенге без пробелов, "date": "YYYY-MM-DD" или null, "party": "магазин, продавец или получатель", "category": одна из ${JSON.stringify(CATS)}, "docType": одна из ${JSON.stringify(DOCS)}, "note": "что куплено, коротко"}
+Если поле не видно, ставь null. Ничего не выдумывай.`;
+function shrink(file){return new Promise((res,rej)=>{const u=URL.createObjectURL(file),im=new Image();
+  im.onload=()=>{const k=Math.min(1,1400/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);
+    c.getContext('2d').drawImage(im,0,0,c.width,c.height);c.toBlob(b=>b?res({blob:b,url:c.toDataURL('image/jpeg',0.5)}):rej(new Error('img')),'image/jpeg',0.8);URL.revokeObjectURL(u)};
+  im.onerror=()=>rej(new Error('img'));im.src=u})}
+async function scan(file){
+  const btn=$('photo');btn.disabled=true;btn.textContent='Читаю чек…';
+  const pre={_hint:''};
+  try{
+    const img=await shrink(file);pre._img=img.url;
+    const sample=await claude.use('sample');
+    if(!sample)pre._hint='Распознавание недоступно. Заполните поля вручную.';
+    else{
+      const r=await sample.json(SCAN_PROMPT,{images:[img.blob],modelTier:'quick',cache:false});
+      const n=parseFloat(String(r.amount??'').replace(/\s/g,'').replace(',','.'));
+      if(n>0)pre.amount=n;
+      if(/^\d{4}-\d{2}-\d{2}$/.test(r.date||''))pre.date=r.date;
+      if(r.party)pre.party=String(r.party);
+      if(CATS.includes(r.category))pre.category=r.category;
+      if(DOCS.includes(r.docType))pre.docType=r.docType;
+      if(r.note)pre.note=String(r.note);
+      pre._hint='Распознано по фото. Проверьте данные и нажмите «Сохранить».';
+    }
+  }catch(e){pre._hint=(e&&e.code==='not_granted')?'Нет разрешения на распознавание. Заполните поля вручную.':'Не удалось прочитать чек. Заполните поля вручную.'}
+  btn.disabled=false;btn.textContent='Фото чека';
+  openSheet(null,pre);
+}
+$('cam').addEventListener('change',ev=>{const f=ev.target.files[0];ev.target.value='';if(f)scan(f)});
 let dl=null;
 async function exportCsv(){
   const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
