@@ -105,7 +105,7 @@ const CATS=['ПНСВ','Откат','Оборудование','Материал
 const DOCS=['Чек','Акт','Счёт-фактура','Прочее'];
 const TABS=[['ops','Операции'],['acts','Акты'],['calc','Расчёт']];
 let savedP='';try{savedP=localStorage.getItem('project')||''}catch(e){}
-const S={entries:[],project:PROJECTS.includes(savedP)?savedP:PROJECTS[0],company:'Все',tab:'ops',sheet:null,loaded:false,db:null};
+const S={settings:{},entries:[],project:PROJECTS.includes(savedP)?savedP:PROJECTS[0],company:'Все',tab:'ops',sheet:null,loaded:false,db:null};
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmt=n=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2}).format(n)+' ₸';
@@ -122,6 +122,13 @@ function filtered(){
 }
 const potential=p=>p==='БОК'?EST_BOK.rows.reduce((a,r)=>a+r[11],0):p==='Нац банк'?nbTotals().prof:0;
 function balance(p,skipId){const l=S.entries.filter(e=>(e.project||PROJECTS[0])===p&&e.id!==skipId),t=totals(l);return potential(p)+t.b}
+function advance(p){
+  const st=S.settings[p];if(!st)return null;
+  const acts=S.entries.filter(e=>(e.project||PROJECTS[0])===p&&e.docType==='Акт'&&e.kind==='income').sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.createdAt||0)-(b.createdAt||0));
+  let rem=+st.advance||0;const map={};
+  acts.forEach(e=>{const w=Math.min(rem,(+e.amount||0)*(+st.pct||0)/100);map[e.id]=w;rem-=w});
+  return{adv:+st.advance||0,pct:+st.pct||0,map,done:(+st.advance||0)-rem,rem};
+}
 function totals(l){let i=0,o=0;l.forEach(e=>{if(e.kind==='income')i+=+e.amount||0;else o+=+e.amount||0});return{i,o,b:i-o}}
 
 function render(){
@@ -131,7 +138,8 @@ function render(){
   if(S.tab==='calc'){m.innerHTML=renderCalc();return}
   const l=filtered(),t=totals(l);
   const pot=potential(S.project);
-  let h=(pot?`<div class="co pot"><div class="kv"><span>Потенциальная прибыль</span><b class="num in">${fmt(pot)}</b></div><div class="kv"><span>Баланс (прибыль − расходы)</span><b class="num ${balance(S.project)<0?'out':'in'}">${fmt(balance(S.project))}</b></div></div>`:'')+`<div class="sum"><div><small>Приход</small><b class="num in">${fmt(t.i)}</b></div><div><small>Расход</small><b class="num out">${fmt(t.o)}</b></div><div><small>Баланс</small><b class="num ${t.b<0?'out':'in'}">${fmt(t.b)}</b></div></div>`;
+  const A=advance(S.project);
+  let h=(A?`<div class="co pot"><h3>Аванс · удержание ${A.pct}% с каждого акта</h3><div class="kv"><span>Получено аванса</span><b class="num">${fmt(A.adv)}</b></div><div class="kv"><span>Удержано с актов</span><span class="num out">${fmt(A.done)}</span></div><div class="kv"><span>Остаток аванса</span><b class="num ${A.rem>0?'out':'in'}">${fmt(A.rem)}</b></div></div>`:'')+(pot?`<div class="co pot"><div class="kv"><span>Потенциальная прибыль</span><b class="num in">${fmt(pot)}</b></div><div class="kv"><span>Баланс (прибыль − расходы)</span><b class="num ${balance(S.project)<0?'out':'in'}">${fmt(balance(S.project))}</b></div></div>`:'')+`<div class="sum"><div><small>Приход</small><b class="num in">${fmt(t.i)}</b></div><div><small>Расход</small><b class="num out">${fmt(t.o)}</b></div><div><small>Баланс</small><b class="num ${t.b<0?'out':'in'}">${fmt(t.b)}</b></div></div>`;
   if(!l.length){
     h+=`<div class="empty"><b>${S.loaded?(S.tab==='acts'?'Актов пока нет':'Записей пока нет'):'Загрузка…'}</b>${S.loaded?'Нажмите «Добавить» или пришлите чек Claude в чат: он добавит запись сюда.':''}</div>`;
   }else{
@@ -139,7 +147,7 @@ function render(){
     l.forEach(e=>{
       if(e.date!==last){if(open)h+='</div>';h+=`<div class="day">${dayLabel(e.date)}</div><div class="list">`;last=e.date;open=true}
       const sign=e.kind==='income'?'+':'−';
-      h+=`<button class="row" data-id="${esc(e.id)}"><div class="l"><div class="t">${esc(e.party||e.category||'Без названия')}</div><div class="s"><span class="tag">${esc(e.docType||'Прочее')}</span>${esc(e.company)} · ${esc(e.category||'')}${e.note?' · '+esc(e.note):''}</div></div><div class="a num ${e.kind==='income'?'in':'out'}">${sign}${fmt(+e.amount||0)}</div></button>`;
+      h+=`<button class="row" data-id="${esc(e.id)}"><div class="l"><div class="t">${esc(e.party||e.category||'Без названия')}</div><div class="s"><span class="tag">${esc(e.docType||'Прочее')}</span>${esc(e.company)} · ${esc(e.category||'')}${e.note?' · '+esc(e.note):''}${A&&A.map[e.id]!==undefined?` · удержано ${fmt(A.map[e.id])}, к оплате ${fmt((+e.amount||0)-A.map[e.id])}`:''}</div></div><div class="a num ${e.kind==='income'?'in':'out'}">${sign}${fmt(+e.amount||0)}</div></button>`;
     });
     if(open)h+='</div>';
   }
@@ -213,7 +221,12 @@ function updBal(){
   const el=$('bal');if(!el)return;
   const a=parseFloat(($('f-amount').value||'').replace(/\s/g,'').replace(',','.'))||0,p=$('f-project').value;
   const b=balance(p,S.sheet.id)+(S.sheet.kind==='income'?a:-a);
-  el.innerHTML=`Баланс ${esc(p)} после записи: <b class="${b<0?'out':'in'}">${fmt(b)}</b>`+(potential(p)?' (потенциальная прибыль − расходы)':'');
+  const st=S.settings[p];let hint='';
+  if(st&&S.sheet.kind==='income'&&$('f-doc').value==='Акт'){
+    const A=advance(p),others=A?A.done-(A.map[S.sheet.id]||0):0,w=Math.max(0,Math.min((+st.advance||0)-others,a*(+st.pct||0)/100));
+    hint=`<br>Акт: удержание аванса ${st.pct}% = <b>${fmt(w)}</b>, к оплате <b>${fmt(a-w)}</b>`;
+  }
+  el.innerHTML=`Баланс ${esc(p)} после записи: <b class="${b<0?'out':'in'}">${fmt(b)}</b>`+(potential(p)?' (потенциальная прибыль − расходы)':'')+hint;
 }
 function closeSheet(){$('overlay').innerHTML='';S.sheet=null}
 
@@ -244,7 +257,7 @@ document.addEventListener('click',async ev=>{
   else if(t.id==='csv')exportCsv();
 });
 document.addEventListener('input',ev=>{if(ev.target.id==='f-amount')updBal()});
-document.addEventListener('change',ev=>{if(ev.target.id==='f-project')updBal()});
+document.addEventListener('change',ev=>{if(ev.target.id==='f-project'||ev.target.id==='f-doc')updBal()});
 document.addEventListener('submit',ev=>{ev.preventDefault();save()});
 
 let dl=null;
@@ -263,6 +276,7 @@ render();
   try{S.db=await claude.use('db')}catch(e){}
   if(!S.db){$('status').textContent='Хранилище недоступно';S.loaded=true;render();return}
   $('status').textContent='Данные общие и сохраняются';
+  S.db.collection('settings').onSnapshot(snap=>{S.settings={};snap.docs.forEach(d=>{const x=d.data();if(x&&x.project)S.settings[x.project]=x});if(!S.sheet)render()},()=>{});
   S.db.collection('entries').onSnapshot(snap=>{
     S.entries=snap.docs.map(d=>({id:d.id,...d.data()}));S.loaded=true;
     if(!S.sheet)render();
