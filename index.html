@@ -247,21 +247,21 @@ function renderCalc(){
     R.map(r=>`<tr><td>${esc(r[0])}</td><td class="num">${fmt0(r[2])} ${esc(r[1]||'')}</td><td class="num">${fmt0(r[4])}</td><td class="num">${fmt0(r[7])}</td><td class="num">${fmt0(r[6])}</td><td class="num">${fmt0(r[8])}</td><td class="num ${r[9]<0?'out':''}">${fmt0(r[9])}</td><td class="num ${r[11]<0?'out':''}">${fmt0(r[11])}</td></tr>`).join('')+
     `</tbody><tfoot><tr><td>Итого</td><td></td><td class="num">${fmt0(T.vat)}</td><td class="num">${fmt0(T.nds)}</td><td class="num">${fmt0(T.brig)}</td><td class="num">${fmt0(T.net)}</td><td class="num">${fmt0(T.pr)}</td><td class="num">${fmt0(T.prn)}</td></tr></tfoot></table></div><div class="day">Факт по записям</div>`;
   }else{
-    const N=nbTotals(),E=EST_NB;
-    h+=`<div class="co"><h3>Смета · ${esc(E.title)}</h3><div class="status" style="margin-bottom:8px">Цены с НДС. Разница считается от суммы без НДС. Сваи в расчёт не входят.</div>
+    const N=nbTotals(),E=EST_NB,k=E.vat/(1+E.vat),
+      row=r=>{const g=r[2]*r[3],net=g/(1+E.vat),br=r[2]*r[4],pr=net-br;return{g,vat:g*k,br,net,pr,after:pr*(1-E.tax)}};
+    h+=`<div class="co"><h3>Смета · ${esc(E.title)}</h3><div class="status" style="margin-bottom:8px">Объёмы из спецификаций КЖ. Сваи в расчёт не входят.</div>
     <div class="kv"><span>Сумма с НДС</span><b class="num">${fmt(N.gross)}</b></div>
-    <div class="kv"><span>НДС ${E.vat*100}% (отдельно)</span><b class="num" style="color:var(--warn)">${fmt(N.vat)}</b></div>
+    <div class="kv"><span>НДС (отдельно)</span><b class="num" style="color:var(--warn)">${fmt(N.vat)}</b></div>
     <div class="kv"><span>Сумма без НДС</span><span class="num">${fmt(N.net)}</span></div>
     <div class="kv"><span>Бригада</span><span class="num out">${fmt(N.brig)}</span></div>
-    <div class="kv"><span>Разница до налога</span><span class="num">${fmt(N.diff)}</span></div>
-    <div class="kv"><span>Налог ${E.tax*100}% с разницы</span><span class="num out">${fmt(N.tax)}</span></div>
-    <div class="kv"><span>Чистая прибыль</span><b class="num in">${fmt(N.prof)}</b></div>
-    <div class="kv"><span>Рентабельность</span><span class="num">${(N.margin*100).toFixed(1)}%</span></div>
+    <div class="kv"><span>Наша прибыль</span><b class="num in">${fmt(N.diff)}</b></div>
+    <div class="kv"><span>Налог ${E.tax*100}%</span><span class="num out">${fmt(N.tax)}</span></div>
+    <div class="kv"><span>Прибыль −налог</span><b class="num in">${fmt(N.prof)}</b></div>
     <div class="kv"><span>Фактические расходы</span><span class="num out">${fmt(t.o)}</span></div>
-    <div class="kv"><span>Прибыль за вычетом расходов</span><b class="num ${N.prof-t.o<0?'out':'in'}">${fmt(N.prof-t.o)}</b></div></div>
-    `+pie('Распределение расчёта Нац банк',[['Бригада',N.brig],['Налог 10%',N.tax],['Чистая прибыль',N.prof]],'Доли от суммы без НДС по смете.')+`<div class="day">Позиции сметы</div><div class="est"><table><thead><tr><th>Блок · работа</th><th>Объём</th><th>Цена с НДС</th><th>Сумма с НДС</th><th>НДС</th><th>Бригада</th><th>Разница</th></tr></thead><tbody>`+
-    E.rows.map(r=>`<tr><td>${esc(r[0])} · ${esc(r[1])}</td><td class="num">${new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2}).format(r[2])}</td><td class="num">${fmt0(r[3])}</td><td class="num">${fmt0(r[2]*r[3])}</td><td class="num">${fmt0(r[2]*r[3]*EST_NB.vat/(1+EST_NB.vat))}</td><td class="num">${fmt0(r[2]*r[4])}</td><td class="num">${fmt0(r[2]*r[3]/(1+EST_NB.vat)-r[2]*r[4])}</td></tr>`).join('')+
-    `</tbody><tfoot><tr><td>Итого</td><td></td><td></td><td class="num">${fmt0(N.gross)}</td><td class="num">${fmt0(N.vat)}</td><td class="num">${fmt0(N.brig)}</td><td class="num">${fmt0(N.diff)}</td></tr></tfoot></table></div><div class="day">Факт по записям</div>`;
+    <div class="kv"><span>Прибыль −налог за вычетом расходов</span><b class="num ${N.prof-t.o<0?'out':'in'}">${fmt(N.prof-t.o)}</b></div></div>
+    `+pie('Распределение расчёта Нац банк',[['Бригада',N.brig],['Налог 10%',N.tax],['Прибыль −налог',N.prof]],'Доли от суммы без НДС по смете.')+`<div class="day">Позиции сметы</div><div class="est"><table><thead><tr><th>Наименование</th><th>Кол-во</th><th>Сумма с НДС</th><th>НДС</th><th>Бригада</th><th>Без НДС</th><th>Прибыль</th><th>Прибыль −налог</th></tr></thead><tbody>`+
+    E.rows.map(r=>{const x=row(r);return `<tr><td>${esc(r[0])} · ${esc(r[1])}</td><td class="num">${new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2}).format(r[2])} м³</td><td class="num">${fmt0(x.g)}</td><td class="num">${fmt0(x.vat)}</td><td class="num">${fmt0(x.br)}</td><td class="num">${fmt0(x.net)}</td><td class="num ${x.pr<0?'out':''}">${fmt0(x.pr)}</td><td class="num ${x.after<0?'out':''}">${fmt0(x.after)}</td></tr>`}).join('')+
+    `</tbody><tfoot><tr><td>Итого</td><td></td><td class="num">${fmt0(N.gross)}</td><td class="num">${fmt0(N.vat)}</td><td class="num">${fmt0(N.brig)}</td><td class="num">${fmt0(N.net)}</td><td class="num">${fmt0(N.diff)}</td><td class="num">${fmt0(N.prof)}</td></tr></tfoot></table></div><div class="day">Факт по записям</div>`;
   }
   h+=`<div class="co"><h3>${esc(S.project)}</h3><div class="kv"><span>Приход</span><b class="num in">${fmt(t.i)}</b></div><div class="kv"><span>Расход</span><b class="num out">${fmt(t.o)}</b></div><div class="kv"><span>Баланс</span><b class="num ${t.b<0?'out':'in'}">${fmt(t.b)}</b></div>`;
   if(ks.length)h+=`<div class="day" style="margin-top:10px">Расходы по статьям</div>`+ks.map(([k,v])=>`<div class="kv"><span>${esc(k)}</span><span class="num">${fmt(v)}</span></div>`).join('');
