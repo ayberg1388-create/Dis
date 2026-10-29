@@ -34,7 +34,7 @@ h1{font-size:15px;font-weight:600;margin:0;letter-spacing:.06em;text-transform:u
 .est th:first-child,.est td:first-child{text-align:left;white-space:normal;min-width:170px}
 .est th{font-size:11px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.04em}
 .est tfoot td{font-weight:600}
-.tabs{display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid var(--line);margin-top:6px}
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--line);margin-top:6px}
 .tab{text-transform:uppercase;letter-spacing:.05em;font-size:12px;background:none;border:0;border-bottom:2px solid transparent;padding:10px 0;color:var(--muted);font-weight:500}
 .tab[aria-selected="true"]{color:var(--ink);border-color:var(--accent)}
 .pie{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
@@ -115,9 +115,9 @@ function nbTotals(){const E=EST_NB,gross=E.rows.reduce((a,r)=>a+r[2]*r[3],0),net
   return{net,vat:gross-net,gross,brig,diff,tax,prof:diff-tax,margin:net?(diff-tax)/net:0}}
 const CATS=['ПНСВ','Откат','Оборудование','Материалы','Зарплата','Налоги','Транспорт','Аренда','Услуги','Прочее'];
 const DOCS=['Чек','Акт','Счёт-фактура','Прочее'];
-const TABS=[['ops','Операции'],['acts','Акты'],['calc','Расчёт']];
+const TABS=[['ops','Операции'],['acts','Акты'],['plan','План'],['calc','Расчёт']];
 let savedP='';try{savedP=localStorage.getItem('project')||''}catch(e){}
-const S={settings:{},entries:[],project:PROJECTS.includes(savedP)?savedP:PROJECTS[0],company:'Все',tab:'ops',sheet:null,loaded:false,db:null};
+const S={plans:[],settings:{},entries:[],project:PROJECTS.includes(savedP)?savedP:PROJECTS[0],company:'Все',tab:'ops',sheet:null,loaded:false,db:null};
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmt=n=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}).format(n)+' ₸';
@@ -134,6 +134,7 @@ function filtered(){
 }
 const potential=p=>p==='БОК'?EST_BOK.rows.reduce((a,r)=>a+r[11],0):p==='Нац банк'?nbTotals().prof:0;
 function balance(p,skipId){const l=S.entries.filter(e=>(e.project||PROJECTS[0])===p&&e.id!==skipId),t=totals(l);return potential(p)+t.b}
+const planned=p=>S.plans.filter(x=>(x.project||PROJECTS[0])===p).reduce((a,x)=>a+(+x.amount||0),0);
 function advance(p){
   const st=S.settings[p];if(!st)return null;
   const acts=S.entries.filter(e=>(e.project||PROJECTS[0])===p&&e.docType==='Акт'&&e.kind==='income').sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.createdAt||0)-(b.createdAt||0));
@@ -148,10 +149,11 @@ function render(){
   $('tabs').innerHTML=TABS.map(([k,n])=>`<button class="tab" role="tab" data-tab="${k}" aria-selected="${S.tab===k}">${n}</button>`).join('');
   const m=$('main');
   if(S.tab==='calc'){m.innerHTML=renderCalc();return}
+  if(S.tab==='plan'){m.innerHTML=renderPlan();return}
   const l=filtered(),t=totals(l);
   const pot=potential(S.project);
   const A=advance(S.project);
-  let h=(A?`<div class="co pot"><h3>Аванс · удержание ${A.pct}% с каждого акта</h3><div class="kv"><span>Получено аванса</span><b class="num">${fmt(A.adv)}</b></div><div class="kv"><span>Удержано с актов</span><span class="num out">${fmt(A.done)}</span></div><div class="kv"><span>Остаток аванса</span><b class="num ${A.rem>0?'out':'in'}">${fmt(A.rem)}</b></div></div>`:'')+(pot?`<div class="co pot"><div class="kv"><span>Потенциальная прибыль</span><b class="num in">${fmt(pot)}</b></div><div class="kv"><span>Баланс (прибыль − расходы)</span><b class="num ${balance(S.project)<0?'out':'in'}">${fmt(balance(S.project))}</b></div></div>`:'')+`<div class="sum"><div><small>Приход</small><b class="num in">${fmt(t.i)}</b></div><div><small>Расход</small><b class="num out">${fmt(t.o)}</b></div><div><small>Баланс</small><b class="num ${t.b<0?'out':'in'}">${fmt(t.b)}</b></div></div>`;
+  let h=(A?`<div class="co pot"><h3>Аванс · удержание ${A.pct}% с каждого акта</h3><div class="kv"><span>Получено аванса</span><b class="num">${fmt(A.adv)}</b></div><div class="kv"><span>Удержано с актов</span><span class="num out">${fmt(A.done)}</span></div><div class="kv"><span>Остаток аванса</span><b class="num ${A.rem>0?'out':'in'}">${fmt(A.rem)}</b></div></div>`:'')+(pot?`<div class="co pot"><div class="kv"><span>Потенциальная прибыль</span><b class="num in">${fmt(pot)}</b></div><div class="kv"><span>Баланс (прибыль − расходы)</span><b class="num ${balance(S.project)<0?'out':'in'}">${fmt(balance(S.project))}</b></div>${planned(S.project)?`<div class="kv"><span>Запланировано расходов</span><span class="num" style="color:var(--warn)">${fmt(planned(S.project))}</span></div><div class="kv"><span>Баланс после плана</span><b class="num ${balance(S.project)-planned(S.project)<0?'out':'in'}">${fmt(balance(S.project)-planned(S.project))}</b></div>`:''}</div>`:'')+`<div class="sum"><div><small>Приход</small><b class="num in">${fmt(t.i)}</b></div><div><small>Расход</small><b class="num out">${fmt(t.o)}</b></div><div><small>Баланс</small><b class="num ${t.b<0?'out':'in'}">${fmt(t.b)}</b></div></div>`;
   if(!l.length){
     h+=`<div class="empty"><b>${S.loaded?(S.tab==='acts'?'Актов пока нет':'Записей пока нет'):'Загрузка…'}</b>${S.loaded?'Нажмите «Добавить» или пришлите чек Claude в чат: он добавит запись сюда.':''}</div>`;
   }else{
@@ -178,6 +180,50 @@ function pie(title,items,note){
   });
   const leg=items.map((it,k)=>`<div class="lg"><i style="background:${PIE_COLORS[k%PIE_COLORS.length]}"></i><span>${esc(it[0])}</span><b class="num">${(it[1]/tot*100).toFixed(1)}%</b><span class="num amt">${fmt0(it[1])}</span></div>`).join('');
   return `<div class="co"><h3>${esc(title)}</h3><div class="pie"><svg viewBox="0 0 200 200" role="img" aria-label="${esc(title)}">${paths}<text x="100" y="96" text-anchor="middle" fill="var(--muted)" font-size="9" font-family="var(--mono)">ВСЕГО</text><text x="100" y="112" text-anchor="middle" fill="var(--ink)" font-size="11" font-family="var(--mono)">${fmt0(tot)}</text></svg><div class="legend">${leg}</div></div>${note?`<div class="status" style="margin-top:8px">${esc(note)}</div>`:''}</div>`;
+}
+function renderPlan(){
+  const l=S.plans.filter(x=>(x.project||PROJECTS[0])===S.project).sort((a,b)=>(a.date||'').localeCompare(b.date||'')),pl=planned(S.project),t=totals(S.entries.filter(e=>(e.project||PROJECTS[0])===S.project)),bal=balance(S.project);
+  let h=`<div class="co pot"><div class="kv"><span>Планируемые расходы</span><b class="num" style="color:var(--warn)">${fmt(pl)}</b></div><div class="kv"><span>Уже потрачено</span><span class="num out">${fmt(t.o)}</span></div><div class="kv"><span>Баланс сейчас</span><span class="num ${bal<0?'out':'in'}">${fmt(bal)}</span></div><div class="kv"><span>Баланс после плана</span><b class="num ${bal-pl<0?'out':'in'}">${fmt(bal-pl)}</b></div></div>`;
+  if(!l.length)return h+`<div class="empty"><b>${S.loaded?'Планов пока нет':'Загрузка…'}</b>${S.loaded?'Нажмите «Добавить», чтобы записать будущий расход.':''}</div>`;
+  h+='<div class="day">Запланировано</div><div class="list">';
+  l.forEach(x=>{h+=`<button class="row" data-plan="${esc(x.id)}"><div class="l"><div class="t">${esc(x.party||x.category||'Без названия')}</div><div class="s"><span class="tag">План</span>${x.date?dayLabel(x.date)+' · ':''}${esc(x.category||'')}${x.note?' · '+esc(x.note):''}</div></div><div class="a num" style="color:var(--warn)">${fmt(+x.amount||0)}</div></button>`});
+  return h+'</div>';
+}
+function openPlan(p){
+  const x=p||{project:S.project,date:today(),category:CATS[0],amount:'',party:'',note:''};
+  S.sheet={plan:true,id:p?.id};
+  const opt=(a,v)=>a.map(o=>`<option${o===v?' selected':''}>${esc(o)}</option>`).join('');
+  $('overlay').innerHTML=`<div class="scrim" id="scrim"><form class="sheet" id="form" novalidate>
+    <h2>${p?'Планируемый расход':'Новый плановый расход'}</h2>
+    <label for="p-amount">Сумма, ₸</label><input id="p-amount" inputmode="decimal" autocomplete="off" value="${esc(x.amount)}" placeholder="0">
+    <label for="p-project">Проект</label><select id="p-project">${opt(PROJECTS,x.project||S.project)}</select>
+    <div class="two"><div><label for="p-date">Дата</label><input id="p-date" type="date" value="${esc(x.date)}"></div>
+    <div><label for="p-cat">Статья</label><select id="p-cat">${opt(CATS,x.category)}</select></div></div>
+    <label for="p-party">На что или кому</label><input id="p-party" autocomplete="off" value="${esc(x.party)}" placeholder="Что планируете купить или оплатить">
+    <label for="p-note">Комментарий</label><textarea id="p-note" rows="2">${esc(x.note)}</textarea>
+    <div class="err" id="err"></div>
+    <div class="act">${p?'<button type="button" class="del" id="del">Удалить</button>':''}<button type="button" id="cancel">Отмена</button><button type="submit" class="ok">Сохранить</button></div>
+    ${p?'<div class="act"><button type="button" id="paid">Оплачено: перенести в расходы</button></div>':''}
+  </form></div>`;
+  if(!p)$('p-amount').focus();
+}
+async function savePlan(){
+  const amount=parseFloat($('p-amount').value.replace(/\s/g,'').replace(',','.'));
+  if(!(amount>0)){$('err').textContent='Введите сумму больше нуля.';return}
+  if(!S.db){$('err').textContent='Хранилище недоступно.';return}
+  const d={project:$('p-project').value,amount,date:$('p-date').value||today(),category:$('p-cat').value,party:$('p-party').value.trim(),note:$('p-note').value.trim()};
+  try{
+    if(S.sheet.id)await S.db.collection('plans').doc(S.sheet.id).update(d);else await S.db.collection('plans').add({...d,createdAt:Date.now()});
+    closeSheet();toast('Сохранено');
+  }catch(e){$('err').textContent='Не удалось сохранить: '+(e.message||e.code||'ошибка')+'. Попробуйте ещё раз.'}
+}
+async function payPlan(){
+  const p=S.plans.find(x=>x.id===S.sheet.id);if(!p||!S.db)return;
+  try{
+    await S.db.collection('entries').add({project:p.project||PROJECTS[0],kind:'expense',amount:+p.amount,company:COMPANIES[0],date:today(),docType:'Прочее',party:p.party||'',category:p.category,note:p.note||'',createdAt:Date.now()});
+    await S.db.collection('plans').doc(p.id).delete();
+    closeSheet();toast('Перенесено в расходы');
+  }catch(e){$('err').textContent='Не удалось перенести. Попробуйте ещё раз.'}
 }
 function renderCalc(){
   const l=S.entries.filter(e=>(e.project||PROJECTS[0])===S.project),t=totals(l);
@@ -273,20 +319,22 @@ document.addEventListener('click',async ev=>{
   const t=ev.target.closest('button,.scrim');if(!t)return;
   if(t.dataset.proj){S.project=t.dataset.proj;try{localStorage.setItem('project',S.project)}catch(e){}render()}
   else if(t.dataset.tab){S.tab=t.dataset.tab;render()}
-  else if(t.id==='add')openSheet();
+  else if(t.id==='add')S.tab==='plan'?openPlan():openSheet();
+  else if(t.dataset.plan)openPlan(S.plans.find(x=>x.id===t.dataset.plan));
+  else if(t.id==='paid')payPlan();
   else if(t.id==='photo')$('cam').click();
   else if(t.dataset.id)openSheet(S.entries.find(e=>e.id===t.dataset.id));
   else if(t.dataset.kind){S.sheet.kind=t.dataset.kind;document.querySelectorAll('#form .seg button').forEach(b=>b.setAttribute('aria-pressed',b===t));updBal()}
   else if(t.id==='cancel'||(t.id==='scrim'&&ev.target===t))closeSheet();
   else if(t.id==='del'){
     if(t.dataset.sure!=='1'){t.dataset.sure='1';t.textContent='Точно удалить?';return}
-    try{await S.db.collection('entries').doc(S.sheet.id).delete();closeSheet();toast('Удалено')}catch(e){$('err').textContent='Не удалось удалить.'}
+    try{await S.db.collection(S.sheet.plan?'plans':'entries').doc(S.sheet.id).delete();closeSheet();toast('Удалено')}catch(e){$('err').textContent='Не удалось удалить.'}
   }
   else if(t.id==='csv')exportCsv();
 });
 document.addEventListener('input',ev=>{if(ev.target.id==='f-amount')updBal()});
 document.addEventListener('change',ev=>{if(ev.target.id==='f-project'||ev.target.id==='f-doc')updBal()});
-document.addEventListener('submit',ev=>{ev.preventDefault();save()});
+document.addEventListener('submit',ev=>{ev.preventDefault();S.sheet&&S.sheet.plan?savePlan():save()});
 
 const SCAN_PROMPT=`На изображении чек, квитанция или перевод из Казахстана (валюта тенге ₸). Извлеки данные для записи расхода и верни ТОЛЬКО JSON без пояснений:
 {"amount": число итоговой суммы в тенге без пробелов, "date": "YYYY-MM-DD" или null, "party": "магазин, продавец или получатель", "category": одна из ${JSON.stringify(CATS)}, "docType": одна из ${JSON.stringify(DOCS)}, "note": "что куплено, коротко"}
@@ -335,6 +383,7 @@ render();
   if(!S.db){$('status').textContent='Хранилище недоступно';S.loaded=true;render();return}
   $('status').textContent='Данные общие и сохраняются';
   S.db.collection('settings').onSnapshot(snap=>{S.settings={};snap.docs.forEach(d=>{const x=d.data();if(x&&x.project)S.settings[x.project]=x});if(!S.sheet)render()},()=>{});
+  S.db.collection('plans').onSnapshot(snap=>{S.plans=snap.docs.map(d=>({id:d.id,...d.data()}));if(!S.sheet)render()},()=>{});
   S.db.collection('entries').onSnapshot(snap=>{
     S.entries=snap.docs.map(d=>({id:d.id,...d.data()}));S.loaded=true;
     if(!S.sheet)render();
