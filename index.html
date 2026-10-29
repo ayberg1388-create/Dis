@@ -132,7 +132,8 @@ function filtered(){
   if(S.tab==='acts')l=l.filter(e=>e.docType==='Акт');
   return l.sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.createdAt||0)-(a.createdAt||0));
 }
-const potential=p=>p==='БОК'?EST_BOK.rows.reduce((a,r)=>a+r[11],0):p==='Нац банк'?nbTotals().prof:0;
+const potBase=p=>p==='БОК'?EST_BOK.rows.reduce((a,r)=>a+r[11],0):p==='Нац банк'?nbTotals().prof:0;
+const potential=p=>potBase(p)?potBase(p)-planned(p):0;
 function balance(p,skipId){const l=S.entries.filter(e=>(e.project||PROJECTS[0])===p&&e.id!==skipId),t=totals(l);return potential(p)+t.b}
 const planned=p=>S.plans.filter(x=>(x.project||PROJECTS[0])===p).reduce((a,x)=>a+(+x.amount||0),0);
 function advance(p){
@@ -153,7 +154,7 @@ function render(){
   const l=filtered(),t=totals(l);
   const pot=potential(S.project);
   const A=advance(S.project);
-  let h=(A?`<div class="co pot"><h3>Аванс · удержание ${A.pct}% с каждого акта</h3><div class="kv"><span>Получено аванса</span><b class="num">${fmt(A.adv)}</b></div><div class="kv"><span>Удержано с актов</span><span class="num out">${fmt(A.done)}</span></div><div class="kv"><span>Остаток аванса</span><b class="num ${A.rem>0?'out':'in'}">${fmt(A.rem)}</b></div></div>`:'')+(pot?`<div class="co pot"><div class="kv"><span>Потенциальная прибыль</span><b class="num in">${fmt(pot)}</b></div><div class="kv"><span>Баланс (прибыль − расходы)</span><b class="num ${balance(S.project)<0?'out':'in'}">${fmt(balance(S.project))}</b></div>${planned(S.project)?`<div class="kv"><span>Запланировано расходов</span><span class="num" style="color:var(--warn)">${fmt(planned(S.project))}</span></div><div class="kv"><span>Баланс после плана</span><b class="num ${balance(S.project)-planned(S.project)<0?'out':'in'}">${fmt(balance(S.project)-planned(S.project))}</b></div>`:''}</div>`:'')+`<div class="sum"><div><small>Приход</small><b class="num in">${fmt(t.i)}</b></div><div><small>Расход</small><b class="num out">${fmt(t.o)}</b></div><div><small>Баланс</small><b class="num ${t.b<0?'out':'in'}">${fmt(t.b)}</b></div></div>`;
+  let h=(A?`<div class="co pot"><h3>Аванс · удержание ${A.pct}% с каждого акта</h3><div class="kv"><span>Получено аванса</span><b class="num">${fmt(A.adv)}</b></div><div class="kv"><span>Удержано с актов</span><span class="num out">${fmt(A.done)}</span></div><div class="kv"><span>Остаток аванса</span><b class="num ${A.rem>0?'out':'in'}">${fmt(A.rem)}</b></div></div>`:'')+(pot?`<div class="co pot"><div class="kv"><span>Потенциальная прибыль${planned(S.project)?' (после плана)':''}</span><b class="num ${pot<0?'out':'in'}">${fmt(pot)}</b></div>${planned(S.project)?`<div class="kv"><span>В т.ч. вычтено планируемых расходов</span><span class="num" style="color:var(--warn)">${fmt(planned(S.project))}</span></div>`:''}<div class="kv"><span>Баланс (прибыль − расходы)</span><b class="num ${balance(S.project)<0?'out':'in'}">${fmt(balance(S.project))}</b></div></div>`:'')+`<div class="sum"><div><small>Приход</small><b class="num in">${fmt(t.i)}</b></div><div><small>Расход</small><b class="num out">${fmt(t.o)}</b></div><div><small>Баланс</small><b class="num ${t.b<0?'out':'in'}">${fmt(t.b)}</b></div></div>`;
   if(!l.length){
     h+=`<div class="empty"><b>${S.loaded?(S.tab==='acts'?'Актов пока нет':'Записей пока нет'):'Загрузка…'}</b>${S.loaded?'Нажмите «Добавить» или пришлите чек Claude в чат: он добавит запись сюда.':''}</div>`;
   }else{
@@ -183,7 +184,7 @@ function pie(title,items,note){
 }
 function renderPlan(){
   const l=S.plans.filter(x=>(x.project||PROJECTS[0])===S.project).sort((a,b)=>(a.date||'').localeCompare(b.date||'')),pl=planned(S.project),t=totals(S.entries.filter(e=>(e.project||PROJECTS[0])===S.project)),bal=balance(S.project);
-  let h=`<div class="co pot"><div class="kv"><span>Планируемые расходы</span><b class="num" style="color:var(--warn)">${fmt(pl)}</b></div><div class="kv"><span>Уже потрачено</span><span class="num out">${fmt(t.o)}</span></div><div class="kv"><span>Баланс сейчас</span><span class="num ${bal<0?'out':'in'}">${fmt(bal)}</span></div><div class="kv"><span>Баланс после плана</span><b class="num ${bal-pl<0?'out':'in'}">${fmt(bal-pl)}</b></div></div>`;
+  let h=`<div class="co pot"><div class="kv"><span>Планируемые расходы</span><b class="num" style="color:var(--warn)">${fmt(pl)}</b></div><div class="kv"><span>Уже потрачено</span><span class="num out">${fmt(t.o)}</span></div>${potBase(S.project)?`<div class="kv"><span>Баланс без плана</span><span class="num ${bal+pl<0?'out':'in'}">${fmt(bal+pl)}</span></div><div class="kv"><span>Баланс после плана</span><b class="num ${bal<0?'out':'in'}">${fmt(bal)}</b></div>`:`<div class="kv"><span>Баланс после плана</span><b class="num ${bal-pl<0?'out':'in'}">${fmt(bal-pl)}</b></div>`}</div>`;
   if(!l.length)return h+`<div class="empty"><b>${S.loaded?'Планов пока нет':'Загрузка…'}</b>${S.loaded?'Нажмите «Добавить», чтобы записать будущий расход.':''}</div>`;
   h+='<div class="day">Запланировано</div><div class="list">';
   l.forEach(x=>{h+=`<button class="row" data-plan="${esc(x.id)}"><div class="l"><div class="t">${esc(x.party||x.category||'Без названия')}</div><div class="s"><span class="tag">План</span>${x.date?dayLabel(x.date)+' · ':''}${esc(x.category||'')}${x.note?' · '+esc(x.note):''}</div></div><div class="a num" style="color:var(--warn)">${fmt(+x.amount||0)}</div></button>`});
@@ -240,9 +241,11 @@ function renderCalc(){
     <div class="kv"><span>Бригада</span><span class="num out">${fmt(T.brig)}</span></div>
     <div class="kv"><span>Наша прибыль</span><b class="num in">${fmt(T.pr)}</b></div>
     <div class="kv"><span>Минус 10%</span><span class="num out">${fmt(T.ten)}</span></div>
-    <div class="kv"><span>Прибыль −10%</span><b class="num in">${fmt(T.prn)}</b></div>
+    <div class="kv"><span>Прибыль −10%</span><span class="num in">${fmt(T.prn)}</span></div>
+    <div class="kv"><span>Планируемые расходы</span><span class="num" style="color:var(--warn)">−${fmt(planned('БОК'))}</span></div>
+    <div class="kv"><span>Прибыль после плана</span><b class="num ${T.prn-planned('БОК')<0?'out':'in'}">${fmt(T.prn-planned('БОК'))}</b></div>
     <div class="kv"><span>Фактические расходы</span><span class="num out">${fmt(t.o)}</span></div>
-    <div class="kv"><span>Прибыль −10% за вычетом расходов</span><b class="num ${T.prn-t.o<0?'out':'in'}">${fmt(T.prn-t.o)}</b></div></div>
+    <div class="kv"><span>Остаток прибыли (после плана и факта)</span><b class="num ${T.prn-planned('БОК')-t.o<0?'out':'in'}">${fmt(T.prn-planned('БОК')-t.o)}</b></div></div>
     `+pie('Распределение расчёта БОК',[['Бригада',T.brig],['Удержание 10%',T.ten],['Прибыль −10%',T.prn]],'Доли от суммы без НДС по смете.')+`<div class="day">Позиции сметы</div><div class="est"><table><thead><tr><th>Наименование</th><th>Кол-во</th><th>Сумма с НДС</th><th>НДС</th><th>Бригада</th><th>Без НДС</th><th>Прибыль</th><th>Прибыль −10%</th></tr></thead><tbody>`+
     R.map(r=>`<tr><td>${esc(r[0])}</td><td class="num">${fmt0(r[2])} ${esc(r[1]||'')}</td><td class="num">${fmt0(r[4])}</td><td class="num">${fmt0(r[7])}</td><td class="num">${fmt0(r[6])}</td><td class="num">${fmt0(r[8])}</td><td class="num ${r[9]<0?'out':''}">${fmt0(r[9])}</td><td class="num ${r[11]<0?'out':''}">${fmt0(r[11])}</td></tr>`).join('')+
     `</tbody><tfoot><tr><td>Итого</td><td></td><td class="num">${fmt0(T.vat)}</td><td class="num">${fmt0(T.nds)}</td><td class="num">${fmt0(T.brig)}</td><td class="num">${fmt0(T.net)}</td><td class="num">${fmt0(T.pr)}</td><td class="num">${fmt0(T.prn)}</td></tr></tfoot></table></div><div class="day">Факт по записям</div>`;
@@ -256,9 +259,11 @@ function renderCalc(){
     <div class="kv"><span>Бригада</span><span class="num out">${fmt(N.brig)}</span></div>
     <div class="kv"><span>Наша прибыль</span><b class="num in">${fmt(N.diff)}</b></div>
     <div class="kv"><span>Налог ${E.tax*100}%</span><span class="num out">${fmt(N.tax)}</span></div>
-    <div class="kv"><span>Прибыль −налог</span><b class="num in">${fmt(N.prof)}</b></div>
+    <div class="kv"><span>Прибыль −налог</span><span class="num in">${fmt(N.prof)}</span></div>
+    <div class="kv"><span>Планируемые расходы</span><span class="num" style="color:var(--warn)">−${fmt(planned('Нац банк'))}</span></div>
+    <div class="kv"><span>Прибыль после плана</span><b class="num ${N.prof-planned('Нац банк')<0?'out':'in'}">${fmt(N.prof-planned('Нац банк'))}</b></div>
     <div class="kv"><span>Фактические расходы</span><span class="num out">${fmt(t.o)}</span></div>
-    <div class="kv"><span>Прибыль −налог за вычетом расходов</span><b class="num ${N.prof-t.o<0?'out':'in'}">${fmt(N.prof-t.o)}</b></div></div>
+    <div class="kv"><span>Остаток прибыли (после плана и факта)</span><b class="num ${N.prof-planned('Нац банк')-t.o<0?'out':'in'}">${fmt(N.prof-planned('Нац банк')-t.o)}</b></div></div>
     `+pie('Распределение расчёта Нац банк',[['Бригада',N.brig],['Налог 10%',N.tax],['Прибыль −налог',N.prof]],'Доли от суммы без НДС по смете.')+`<div class="day">Позиции сметы</div><div class="est"><table><thead><tr><th>Наименование</th><th>Кол-во</th><th>Сумма с НДС</th><th>НДС</th><th>Бригада</th><th>Без НДС</th><th>Прибыль</th><th>Прибыль −налог</th></tr></thead><tbody>`+
     E.rows.map(r=>{const x=row(r);return `<tr><td>${esc(r[0])} · ${esc(r[1])}</td><td class="num">${new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2}).format(r[2])} м³</td><td class="num">${fmt0(x.g)}</td><td class="num">${fmt0(x.vat)}</td><td class="num">${fmt0(x.br)}</td><td class="num">${fmt0(x.net)}</td><td class="num ${x.pr<0?'out':''}">${fmt0(x.pr)}</td><td class="num ${x.after<0?'out':''}">${fmt0(x.after)}</td></tr>`}).join('')+
     `</tbody><tfoot><tr><td>Итого</td><td></td><td class="num">${fmt0(N.gross)}</td><td class="num">${fmt0(N.vat)}</td><td class="num">${fmt0(N.brig)}</td><td class="num">${fmt0(N.net)}</td><td class="num">${fmt0(N.diff)}</td><td class="num">${fmt0(N.prof)}</td></tr></tfoot></table></div><div class="day">Факт по записям</div>`;
@@ -299,7 +304,7 @@ function updBal(){
     const A=advance(p),others=A?A.done-(A.map[S.sheet.id]||0):0,w=Math.max(0,Math.min((+st.advance||0)-others,a*(+st.pct||0)/100));
     hint=`<br>Акт: удержание аванса ${st.pct}% = <b>${fmt(w)}</b>, к оплате <b>${fmt(a-w)}</b>`;
   }
-  el.innerHTML=`Баланс ${esc(p)} после записи: <b class="${b<0?'out':'in'}">${fmt(b)}</b>`+(potential(p)?' (потенциальная прибыль − расходы)':'')+hint;
+  el.innerHTML=`Баланс ${esc(p)} после записи: <b class="${b<0?'out':'in'}">${fmt(b)}</b>`+(potBase(p)?' (прибыль после плана − расходы)':'')+hint;
 }
 function closeSheet(){$('overlay').innerHTML='';S.sheet=null}
 
