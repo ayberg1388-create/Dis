@@ -247,9 +247,8 @@ function positions(p){
 const nf2=n=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2}).format(n);
 const monthLabel=m=>{try{return new Date(m+'-01T00:00').toLocaleDateString('ru-RU',{month:'long',year:'numeric'})}catch(e){return m}};
 function pours(k,x){const v=S.vol[k]||{};if(Array.isArray(v.pours))return v.pours;if(v.month)return[{month:v.month,qty:x.qty,done:!!v.done}];return[]}
-function renderVol(p){
-  const P=positions(p);if(!P.length)return '';
-  const by={};let tot={q:0,dq:0,sq:0,c:0,dc:0};
+function volSummaryHtml(p){
+  const P=positions(p),by={};let tot={q:0,dq:0,sq:0,c:0,dc:0};
   P.forEach(x=>{
     const k=volKey(p,x.i),L=pours(k,x),m3=isM3(x.unit),unit=x.cost/(x.qty||1);
     if(m3)tot.q+=x.qty;tot.c+=x.cost;
@@ -258,8 +257,7 @@ function renderVol(p){
       const g=by[r.month]||(by[r.month]={pq:0,pc:0,dq:0,dc:0,rows:[]});
       g.pq+=m3?q:0;g.pc+=q*unit;if(r.done){g.dq+=m3?q:0;g.dc+=q*unit}
       g.rows.push({name:x.name,unit:x.unit,q,full:x.qty,done:!!r.done})})});
-  let h='<div class="day">Выполнение объёмов по месяцам</div>';
-  h+=`<div class="co"><h3>Итого по объёмам</h3>
+  let h=`<div class="co"><h3>Итого по объёмам</h3>
     <div class="kv"><span>Всего по смете</span><span class="num">${nf2(tot.q)} м³</span></div>
     <div class="kv"><span>Выполнено</span><b class="num in">${nf2(tot.dq)} м³ · ${fmt(tot.dc)}</b></div>
     <div class="kv"><span>Осталось выполнить</span><span class="num out">${nf2(Math.max(0,tot.q-tot.dq))} м³ · ${fmt(Math.max(0,tot.c-tot.dc))}</span></div>
@@ -276,21 +274,40 @@ function renderVol(p){
     g.rows.map(r=>`<div class="kv"><span>${esc(r.name)}${r.q<r.full?` (часть: ${nf2(r.q)} из ${nf2(r.full)} ${esc(r.unit)})`:''}</span><span class="num ${r.done?'in':'out'}">${nf2(r.q)} ${esc(r.unit)} · ${r.done?'выполнено':'не выполнено'}</span></div>`).join('')+'</div>'});
   if(months.length)h+='<div class="status" style="margin:-2px 0 10px">Кубатура считается только по позициям в м³. Стоимость с НДС, пропорционально объёму.</div>';
   else h+='<div class="empty" style="margin-top:0"><b>Месяцы не указаны</b>Добавьте месяц и кубы у позиций ниже, и здесь появятся итоги по месяцам.</div>';
-  h+='<div class="day">Позиции</div>';
+  return h;
+}
+function volProgHtml(p,x){
+  const L=pours(volKey(p,x.i),x),sched=L.reduce((a,r)=>a+(+r.qty||0),0),done=L.filter(r=>r.done).reduce((a,r)=>a+(+r.qty||0),0),left=x.qty-sched;
+  return `Выполнено <b class="num in">${nf2(done)}</b> · разнесено <span class="num">${nf2(sched)}</span> · ${left>=0?`осталось разнести <span class="num">${nf2(left)}</span>`:`<span class="out">больше сметы на <span class="num">${nf2(-left)}</span></span>`} ${esc(x.unit)}`;
+}
+function safeRender(){
+  if(S.sheet)return;
+  const ae=document.activeElement;
+  if(ae&&ae.closest&&ae.closest('#main')&&/^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)){refreshVol();return}
+  render();
+}
+function refreshVol(){
+  const sm=$('vsum');if(!sm)return;
+  sm.innerHTML=volSummaryHtml(S.project);
+  positions(S.project).forEach(x=>{const e=$('vprog-'+volKey(S.project,x.i));if(e)e.innerHTML=volProgHtml(S.project,x)});
+}
+function renderVol(p){
+  const P=positions(p);if(!P.length)return '';
+  let h='<div class="day">Выполнение объёмов по месяцам</div><div id="vsum">'+volSummaryHtml(p)+'</div><div class="day">Позиции</div>';
   P.forEach(x=>{
-    const k=volKey(p,x.i),L=pours(k,x),sched=L.reduce((a,r)=>a+(+r.qty||0),0),done=L.filter(r=>r.done).reduce((a,r)=>a+(+r.qty||0),0),left=x.qty-sched;
+    const k=volKey(p,x.i),L=pours(k,x);
     h+=`<div class="vp"><div class="n">${esc(x.name)}</div><div class="m"><span class="num">${nf2(x.qty)} ${esc(x.unit)}</span> · <span class="num">${fmt(x.cost)}</span></div>
-    <div class="m">Выполнено <b class="num in">${nf2(done)}</b> · разнесено <span class="num">${nf2(sched)}</span> · ${left>=0?`осталось разнести <span class="num">${nf2(left)}</span>`:`<span class="out">больше сметы на <span class="num">${nf2(-left)}</span></span>`} ${esc(x.unit)}</div>`;
+    <div class="m" id="vprog-${k}">${volProgHtml(p,x)}</div>`;
     L.forEach((r,j)=>{const id=k+'|'+j;
       h+=`<div class="c"><input type="month" id="vm-${k}-${j}" data-vm="${id}" value="${esc(r.month||'')}" aria-label="Месяц заливки: ${esc(x.name)}"><input type="text" inputmode="decimal" id="vq-${k}-${j}" data-vq="${id}" value="${esc(r.qty??'')}" placeholder="${esc(x.unit)}" aria-label="Объём, ${esc(x.unit)}" class="vqty">
       <div class="vsg"><button type="button" class="y" data-vk="${id}" data-vv="yes" aria-pressed="${!!r.done}">Да</button><button type="button" class="no" data-vk="${id}" data-vv="no" aria-pressed="${!r.done}">Нет</button></div><button type="button" class="vx" data-vr="${id}" aria-label="Убрать месяц">×</button></div>`});
     h+=`<div class="c"><button type="button" class="csv" data-va="${k}">+ Месяц заливки</button></div></div>`});
   return h;
 }
-function setPours(k,mut){
+function setPours(k,mut,live){
   const p=k.startsWith('bok')?'БОК':'Нац банк',i=+k.split('-')[1],x=positions(p).find(z=>z.i===i);
   const L=pours(k,x).map(r=>({...r}));mut(L,x);
-  const d={project:p,i,pours:L};S.vol[k]=d;render();
+  const d={project:p,i,pours:L};S.vol[k]=d;if(live)refreshVol();else render();
   if(!S.db){toast('Хранилище недоступно');return}
   S.db.collection('volplan').doc(k).set(d).catch(()=>toast('Не удалось сохранить'));
 }
@@ -412,8 +429,8 @@ document.addEventListener('click',async ev=>{
 document.addEventListener('input',ev=>{if(ev.target.id==='f-amount')updBal()});
 document.addEventListener('change',ev=>{if(ev.target.id==='f-project'||ev.target.id==='f-doc')updBal()});
 document.addEventListener('change',ev=>{const d=ev.target.dataset||{};
-  if(d.vm){const[k,j]=d.vm.split('|'),v=ev.target.value;if(v===''||/^\d{4}-\d{2}$/.test(v))setPours(k,L=>{if(L[+j])L[+j].month=v})}
-  else if(d.vq){const[k,j]=d.vq.split('|'),n=parseFloat(ev.target.value.replace(/\s/g,'').replace(',','.'));if(n>=0)setPours(k,L=>{if(L[+j])L[+j].qty=n})}});
+  if(d.vm){const[k,j]=d.vm.split('|'),v=ev.target.value;if(v===''||/^\d{4}-\d{2}$/.test(v))setPours(k,L=>{if(L[+j])L[+j].month=v},true)}
+  else if(d.vq){const[k,j]=d.vq.split('|'),n=parseFloat(ev.target.value.replace(/\s/g,'').replace(',','.'));if(n>=0)setPours(k,L=>{if(L[+j])L[+j].qty=n},true)}});
 document.addEventListener('submit',ev=>{ev.preventDefault();S.sheet&&S.sheet.plan?savePlan():save()});
 
 const SCAN_PROMPT=`На изображении чек, квитанция или перевод из Казахстана (валюта тенге ₸). Извлеки данные для записи расхода и верни ТОЛЬКО JSON без пояснений:
@@ -462,12 +479,12 @@ render();
   try{S.db=await claude.use('db')}catch(e){}
   if(!S.db){$('status').textContent='Хранилище недоступно';S.loaded=true;render();return}
   $('status').textContent='Данные общие и сохраняются';
-  S.db.collection('settings').onSnapshot(snap=>{S.settings={};snap.docs.forEach(d=>{const x=d.data();if(x&&x.project)S.settings[x.project]=x});if(!S.sheet)render()},()=>{});
-  S.db.collection('plans').onSnapshot(snap=>{S.plans=snap.docs.map(d=>({id:d.id,...d.data()}));if(!S.sheet)render()},()=>{});
-  S.db.collection('volplan').onSnapshot(snap=>{S.vol={};snap.docs.forEach(d=>{S.vol[d.id]=d.data()});if(!S.sheet&&!(document.activeElement&&document.activeElement.dataset&&(document.activeElement.dataset.vm||document.activeElement.dataset.vq)))render()},()=>{});
+  S.db.collection('settings').onSnapshot(snap=>{S.settings={};snap.docs.forEach(d=>{const x=d.data();if(x&&x.project)S.settings[x.project]=x});safeRender()},()=>{});
+  S.db.collection('plans').onSnapshot(snap=>{S.plans=snap.docs.map(d=>({id:d.id,...d.data()}));safeRender()},()=>{});
+  S.db.collection('volplan').onSnapshot(snap=>{S.vol={};snap.docs.forEach(d=>{S.vol[d.id]=d.data()});safeRender()},()=>{});
   S.db.collection('entries').onSnapshot(snap=>{
     S.entries=snap.docs.map(d=>({id:d.id,...d.data()}));S.loaded=true;
-    if(!S.sheet)render();
+    safeRender();
   },e=>{$('status').textContent='Нет доступа к данным';S.loaded=true;render()});
 })();
 </script>
