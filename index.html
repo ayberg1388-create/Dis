@@ -43,6 +43,15 @@ h1{font-size:15px;font-weight:600;margin:0;letter-spacing:.06em;text-transform:u
 .lg{display:grid;grid-template-columns:12px 1fr auto auto;gap:8px;align-items:center;font-size:12px}
 .lg i{width:12px;height:12px}
 .lg .amt{color:var(--muted);min-width:84px;text-align:right}
+.vp{background:var(--surface);border:1px solid var(--line);padding:10px 12px;margin-bottom:8px}
+.vp .n{font-weight:500;overflow-wrap:anywhere}
+.vp .m{font-size:12px;color:var(--muted);margin-top:2px}
+.vp .c{display:flex;gap:8px;align-items:stretch;margin-top:8px;flex-wrap:wrap}
+.vp input[type=month]{flex:1 1 140px;padding:8px;font-size:15px}
+.vsg{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);flex:1 1 140px}
+.vsg button{border:0;background:none;padding:8px;font-weight:600;color:var(--muted)}
+.vsg button[aria-pressed="true"].y{background:var(--in);color:#000}
+.vsg button[aria-pressed="true"].no{background:var(--out);color:#000}
 .pot{margin:14px 0 0}
 .bal{font-size:13px;color:var(--muted);margin-top:6px}
 .bal b{font-family:var(--mono)}
@@ -117,7 +126,7 @@ const CATS=['ПНСВ','Откат','Оборудование','Материал
 const DOCS=['Чек','Акт','Счёт-фактура','Прочее'];
 const TABS=[['ops','Операции'],['acts','Акты'],['plan','План'],['calc','Расчёт']];
 let savedP='';try{savedP=localStorage.getItem('project')||''}catch(e){}
-const S={plans:[],settings:{},entries:[],project:PROJECTS.includes(savedP)?savedP:PROJECTS[0],company:'Все',tab:'ops',sheet:null,loaded:false,db:null};
+const S={vol:{},plans:[],settings:{},entries:[],project:PROJECTS.includes(savedP)?savedP:PROJECTS[0],company:'Все',tab:'ops',sheet:null,loaded:false,db:null};
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmt=n=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}).format(n)+' ₸';
@@ -226,6 +235,48 @@ async function payPlan(){
     closeSheet();toast('Перенесено в расходы');
   }catch(e){$('err').textContent='Не удалось перенести. Попробуйте ещё раз.'}
 }
+const isM3=u=>/^м[3³]$/i.test(String(u||'').trim());
+const volKey=(p,i)=>(p==='БОК'?'bok':'nb')+'-'+i;
+function positions(p){
+  if(p==='БОК')return EST_BOK.rows.map((r,i)=>({i,name:r[0],unit:r[1]||'',qty:r[2],cost:r[4]}));
+  if(p==='Нац банк')return EST_NB.rows.map((r,i)=>({i,name:r[0]+' · '+r[1],unit:'м³',qty:r[2],cost:r[2]*r[3]}));
+  return [];
+}
+const nf2=n=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2}).format(n);
+const monthLabel=m=>{try{return new Date(m+'-01T00:00').toLocaleDateString('ru-RU',{month:'long',year:'numeric'})}catch(e){return m}};
+function renderVol(p){
+  const P=positions(p);if(!P.length)return '';
+  const by={};let unset=0;
+  P.forEach(x=>{const v=S.vol[volKey(p,x.i)]||{};if(!v.month){unset++;return}
+    const g=by[v.month]||(by[v.month]={pq:0,pc:0,dq:0,dc:0,n:0,nd:0});
+    const q=isM3(x.unit)?x.qty:0;g.pq+=q;g.pc+=x.cost;g.n++;if(v.done){g.dq+=q;g.dc+=x.cost;g.nd++}});
+  const months=Object.keys(by).sort();
+  let h='<div class="day">Выполнение объёмов по месяцам</div>';
+  if(months.length){
+    months.forEach(m=>{const g=by[m],pct=g.pc?Math.round(g.dc/g.pc*100):0;
+      h+=`<div class="co"><h3>${esc(monthLabel(m))}</h3>
+      <div class="kv"><span>Запланировано (${g.n} поз.)</span><span class="num">${nf2(g.pq)} м³ · ${fmt(g.pc)}</span></div>
+      <div class="kv"><span>Выполнено (${g.nd} поз.)</span><span class="num in">${nf2(g.dq)} м³ · ${fmt(g.dc)}</span></div>
+      <div class="kv"><span>Не выполнено</span><span class="num out">${nf2(g.pq-g.dq)} м³ · ${fmt(g.pc-g.dc)}</span></div>
+      <div class="kv"><span>К закрытию актом</span><b class="num in">${nf2(g.dq)} м³ · ${fmt(g.dc)}</b></div>
+      <div class="kv"><span>Выполнение по стоимости</span><b class="num">${pct}%</b></div></div>`});
+    h+='<div class="status" style="margin:-2px 0 10px">Кубатура считается только по позициям в м³. Стоимость с НДС по всем позициям.</div>';
+  }else h+='<div class="empty" style="margin-top:0"><b>Месяцы не указаны</b>Укажите месяц заливки у позиций ниже, и здесь появятся итоги по месяцам.</div>';
+  h+=`<div class="day">Позиции${unset?` · без месяца: ${unset}`:''}</div>`;
+  P.forEach(x=>{const k=volKey(p,x.i),v=S.vol[k]||{};
+    h+=`<div class="vp"><div class="n">${esc(x.name)}</div><div class="m"><span class="num">${nf2(x.qty)} ${esc(x.unit)}</span> · <span class="num">${fmt(x.cost)}</span></div>
+    <div class="c"><input type="month" id="vm-${k}" data-vm="${k}" value="${esc(v.month||'')}" placeholder="ГГГГ-ММ" aria-label="Месяц заливки: ${esc(x.name)}">
+    <div class="vsg"><button type="button" class="y" data-vk="${k}" data-vv="yes" aria-pressed="${!!v.done}">Да</button><button type="button" class="no" data-vk="${k}" data-vv="no" aria-pressed="${!v.done}">Нет</button></div></div></div>`});
+  return h;
+}
+function setVol(k,patch){
+  const p=k.startsWith('bok')?'БОК':'Нац банк',i=+k.split('-')[1];
+  const d={...(S.vol[k]||{}),...patch,project:p,i};
+  if(d.done===undefined)d.done=false;if(d.month===undefined)d.month='';
+  S.vol[k]=d;render();
+  if(!S.db){toast('Хранилище недоступно');return}
+  S.db.collection('volplan').doc(k).set(d).catch(()=>toast('Не удалось сохранить'));
+}
 function renderCalc(){
   const l=S.entries.filter(e=>(e.project||PROJECTS[0])===S.project),t=totals(l);
   const by={};l.filter(e=>e.kind!=='income').forEach(e=>{const k=e.category||'Прочее';by[k]=(by[k]||0)+(+e.amount||0)});
@@ -248,7 +299,7 @@ function renderCalc(){
     <div class="kv"><span>Остаток прибыли (после плана и факта)</span><b class="num ${T.prn-planned('БОК')-t.o<0?'out':'in'}">${fmt(T.prn-planned('БОК')-t.o)}</b></div></div>
     `+pie('Распределение расчёта БОК',[['Бригада',T.brig],['Удержание 10%',T.ten],['Прибыль −10%',T.prn]],'Доли от суммы без НДС по смете.')+`<div class="day">Позиции сметы</div><div class="est"><table><thead><tr><th>Наименование</th><th>Кол-во</th><th>Сумма с НДС</th><th>НДС</th><th>Бригада</th><th>Без НДС</th><th>Прибыль</th><th>Прибыль −10%</th></tr></thead><tbody>`+
     R.map(r=>`<tr><td>${esc(r[0])}</td><td class="num">${fmt0(r[2])} ${esc(r[1]||'')}</td><td class="num">${fmt0(r[4])}</td><td class="num">${fmt0(r[7])}</td><td class="num">${fmt0(r[6])}</td><td class="num">${fmt0(r[8])}</td><td class="num ${r[9]<0?'out':''}">${fmt0(r[9])}</td><td class="num ${r[11]<0?'out':''}">${fmt0(r[11])}</td></tr>`).join('')+
-    `</tbody><tfoot><tr><td>Итого</td><td></td><td class="num">${fmt0(T.vat)}</td><td class="num">${fmt0(T.nds)}</td><td class="num">${fmt0(T.brig)}</td><td class="num">${fmt0(T.net)}</td><td class="num">${fmt0(T.pr)}</td><td class="num">${fmt0(T.prn)}</td></tr></tfoot></table></div><div class="day">Факт по записям</div>`;
+    `</tbody><tfoot><tr><td>Итого</td><td></td><td class="num">${fmt0(T.vat)}</td><td class="num">${fmt0(T.nds)}</td><td class="num">${fmt0(T.brig)}</td><td class="num">${fmt0(T.net)}</td><td class="num">${fmt0(T.pr)}</td><td class="num">${fmt0(T.prn)}</td></tr></tfoot></table></div>`;
   }else{
     const N=nbTotals(),E=EST_NB,k=E.vat/(1+E.vat),
       row=r=>{const g=r[2]*r[3],net=g/(1+E.vat),br=r[2]*r[4],pr=net-br;return{g,vat:g*k,br,net,pr,after:pr*(1-E.tax)}};
@@ -266,8 +317,9 @@ function renderCalc(){
     <div class="kv"><span>Остаток прибыли (после плана и факта)</span><b class="num ${N.prof-planned('Нац банк')-t.o<0?'out':'in'}">${fmt(N.prof-planned('Нац банк')-t.o)}</b></div></div>
     `+pie('Распределение расчёта Нац банк',[['Бригада',N.brig],['Налог 10%',N.tax],['Прибыль −налог',N.prof]],'Доли от суммы без НДС по смете.')+`<div class="day">Позиции сметы</div><div class="est"><table><thead><tr><th>Наименование</th><th>Кол-во</th><th>Сумма с НДС</th><th>НДС</th><th>Бригада</th><th>Без НДС</th><th>Прибыль</th><th>Прибыль −налог</th></tr></thead><tbody>`+
     E.rows.map(r=>{const x=row(r);return `<tr><td>${esc(r[0])} · ${esc(r[1])}</td><td class="num">${new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2}).format(r[2])} м³</td><td class="num">${fmt0(x.g)}</td><td class="num">${fmt0(x.vat)}</td><td class="num">${fmt0(x.br)}</td><td class="num">${fmt0(x.net)}</td><td class="num ${x.pr<0?'out':''}">${fmt0(x.pr)}</td><td class="num ${x.after<0?'out':''}">${fmt0(x.after)}</td></tr>`}).join('')+
-    `</tbody><tfoot><tr><td>Итого</td><td></td><td class="num">${fmt0(N.gross)}</td><td class="num">${fmt0(N.vat)}</td><td class="num">${fmt0(N.brig)}</td><td class="num">${fmt0(N.net)}</td><td class="num">${fmt0(N.diff)}</td><td class="num">${fmt0(N.prof)}</td></tr></tfoot></table></div><div class="day">Факт по записям</div>`;
+    `</tbody><tfoot><tr><td>Итого</td><td></td><td class="num">${fmt0(N.gross)}</td><td class="num">${fmt0(N.vat)}</td><td class="num">${fmt0(N.brig)}</td><td class="num">${fmt0(N.net)}</td><td class="num">${fmt0(N.diff)}</td><td class="num">${fmt0(N.prof)}</td></tr></tfoot></table></div>`;
   }
+  h+=renderVol(S.project)+`<div class="day">Факт по записям</div>`;
   h+=`<div class="co"><h3>${esc(S.project)}</h3><div class="kv"><span>Приход</span><b class="num in">${fmt(t.i)}</b></div><div class="kv"><span>Расход</span><b class="num out">${fmt(t.o)}</b></div><div class="kv"><span>Баланс</span><b class="num ${t.b<0?'out':'in'}">${fmt(t.b)}</b></div>`;
   if(ks.length)h+=`<div class="day" style="margin-top:10px">Расходы по статьям</div>`+ks.map(([k,v])=>`<div class="kv"><span>${esc(k)}</span><span class="num">${fmt(v)}</span></div>`).join('');
   return h+'</div>'+pie('Фактические расходы по статьям',ks);
@@ -327,6 +379,7 @@ document.addEventListener('click',async ev=>{
   else if(t.id==='add')S.tab==='plan'?openPlan():openSheet();
   else if(t.dataset.plan)openPlan(S.plans.find(x=>x.id===t.dataset.plan));
   else if(t.id==='paid')payPlan();
+  else if(t.dataset.vk)setVol(t.dataset.vk,{done:t.dataset.vv==='yes'});
   else if(t.id==='photo')$('cam').click();
   else if(t.dataset.id)openSheet(S.entries.find(e=>e.id===t.dataset.id));
   else if(t.dataset.kind){S.sheet.kind=t.dataset.kind;document.querySelectorAll('#form .seg button').forEach(b=>b.setAttribute('aria-pressed',b===t));updBal()}
@@ -339,6 +392,7 @@ document.addEventListener('click',async ev=>{
 });
 document.addEventListener('input',ev=>{if(ev.target.id==='f-amount')updBal()});
 document.addEventListener('change',ev=>{if(ev.target.id==='f-project'||ev.target.id==='f-doc')updBal()});
+document.addEventListener('change',ev=>{const k=ev.target.dataset&&ev.target.dataset.vm;if(k){const v=ev.target.value;if(v===''||/^\d{4}-\d{2}$/.test(v))setVol(k,{month:v})}});
 document.addEventListener('submit',ev=>{ev.preventDefault();S.sheet&&S.sheet.plan?savePlan():save()});
 
 const SCAN_PROMPT=`На изображении чек, квитанция или перевод из Казахстана (валюта тенге ₸). Извлеки данные для записи расхода и верни ТОЛЬКО JSON без пояснений:
@@ -389,6 +443,7 @@ render();
   $('status').textContent='Данные общие и сохраняются';
   S.db.collection('settings').onSnapshot(snap=>{S.settings={};snap.docs.forEach(d=>{const x=d.data();if(x&&x.project)S.settings[x.project]=x});if(!S.sheet)render()},()=>{});
   S.db.collection('plans').onSnapshot(snap=>{S.plans=snap.docs.map(d=>({id:d.id,...d.data()}));if(!S.sheet)render()},()=>{});
+  S.db.collection('volplan').onSnapshot(snap=>{S.vol={};snap.docs.forEach(d=>{S.vol[d.id]=d.data()});if(!S.sheet&&!(document.activeElement&&document.activeElement.dataset&&document.activeElement.dataset.vm))render()},()=>{});
   S.db.collection('entries').onSnapshot(snap=>{
     S.entries=snap.docs.map(d=>({id:d.id,...d.data()}));S.loaded=true;
     if(!S.sheet)render();
