@@ -122,8 +122,8 @@ const EST_BOK={"date": "12.06.2026", "title": "БОК «Омарова» — м�
 const EST_NB={title:'Кассовый центр НБ РК · блоки 6 и 8',vat:0.16,tax:0.1,
   rows:[['Блок 6','Ростверк',1873.9,20000,8500],['Блок 6','Подготовка',271.4,5000,0],['Блок 6','Колонны',209.45,51000,27000],['Блок 6','Стены',77.2,51000,27000],['Блок 6','Плиты перекрытия',628.77,51000,27000],
   ['Блок 8','Ростверк',389.27,20000,8500],['Блок 8','Подготовка',76.18,5000,0],['Блок 8','Колонны',21.9,51000,27000],['Блок 8','Стены',3.15,51000,27000],['Блок 8','Плиты перекрытия',140.79,51000,27000]]};
-function nbTotals(){const E=EST_NB,gross=E.rows.reduce((a,r)=>a+r[2]*r[3],0),net=gross/(1+E.vat),brig=E.rows.reduce((a,r)=>a+r[2]*r[4],0),diff=net-brig,tax=diff*E.tax;
-  return{net,vat:gross-net,gross,brig,diff,tax,prof:diff-tax,margin:net?(diff-tax)/net:0}}
+function nbTotals(){const E=EST_NB,gross=E.rows.reduce((a,r)=>a+r[2]*r[3],0),net=gross/(1+E.vat),brig=E.rows.reduce((a,r)=>a+r[2]*r[4],0),diff=net-brig,tax=net*E.tax;
+  return{net,vat:gross-net,gross,brig,diff,tax,prof:diff-tax,deduct:(gross-net)+brig+tax,margin:net?(diff-tax)/net:0}}
 const CATS=['ПНСВ','Откат','Оборудование','Материалы','Зарплата','Налоги','Транспорт','Аренда','Услуги','Прочее'];
 const DOCS=['Чек','Акт','Счёт-фактура','Прочее'];
 const TABS=[['ops','Операции'],['acts','Акты'],['plan','План'],['calc','Расчёт']];
@@ -336,20 +336,20 @@ function renderCalc(){
     `</tbody><tfoot><tr><td>Итого</td><td></td><td class="num">${fmt0(T.vat)}</td><td class="num">${fmt0(T.nds)}</td><td class="num">${fmt0(T.brig)}</td><td class="num">${fmt0(T.net)}</td><td class="num">${fmt0(T.pr)}</td><td class="num">${fmt0(T.prn)}</td></tr></tfoot></table></div>`;
   }else{
     const N=nbTotals(),E=EST_NB,k=E.vat/(1+E.vat),
-      row=r=>{const g=r[2]*r[3],net=g/(1+E.vat),br=r[2]*r[4],pr=net-br;return{g,vat:g*k,br,net,pr,after:pr*(1-E.tax)}};
+      row=r=>{const g=r[2]*r[3],net=g/(1+E.vat),br=r[2]*r[4],pr=net-br;return{g,vat:g*k,br,net,pr,after:pr-net*E.tax}};
     h+=`<div class="co"><h3>Смета · ${esc(E.title)}</h3><div class="status" style="margin-bottom:8px">Объёмы из спецификаций КЖ. Сваи в расчёт не входят.</div>
     <div class="kv"><span>Сумма с НДС</span><b class="num">${fmt(N.gross)}</b></div>
     <div class="kv"><span>НДС (отдельно)</span><b class="num" style="color:var(--warn)">${fmt(N.vat)}</b></div>
     <div class="kv"><span>Сумма без НДС</span><span class="num">${fmt(N.net)}</span></div>
+    <div class="kv"><span>Налог ${E.tax*100}% от суммы без НДС</span><span class="num out">${fmt(N.tax)}</span></div>
     <div class="kv"><span>Бригада</span><span class="num out">${fmt(N.brig)}</span></div>
-    <div class="kv"><span>Наша прибыль</span><b class="num in">${fmt(N.diff)}</b></div>
-    <div class="kv"><span>Налог ${E.tax*100}%</span><span class="num out">${fmt(N.tax)}</span></div>
-    <div class="kv"><span>Прибыль −налог</span><span class="num in">${fmt(N.prof)}</span></div>
+    <div class="kv"><span>Всего вычетов (НДС + налог + бригада)</span><b class="num out">${fmt(N.deduct)}</b></div>
+    <div class="kv"><span>Прибыль (чистая)</span><span class="num in">${fmt(N.prof)}</span></div>
     <div class="kv"><span>Планируемые расходы</span><span class="num" style="color:var(--warn)">−${fmt(planned('Нац банк'))}</span></div>
     <div class="kv"><span>Прибыль после плана</span><b class="num ${N.prof-planned('Нац банк')<0?'out':'in'}">${fmt(N.prof-planned('Нац банк'))}</b></div>
     <div class="kv"><span>Фактические расходы</span><span class="num out">${fmt(t.o)}</span></div>
     <div class="kv"><span>Остаток прибыли (после плана и факта)</span><b class="num ${N.prof-planned('Нац банк')-t.o<0?'out':'in'}">${fmt(N.prof-planned('Нац банк')-t.o)}</b></div></div>
-    `+pie('Распределение расчёта Нац банк',[['Бригада',N.brig],['Налог 10%',N.tax],['Прибыль −налог',N.prof]],'Доли от суммы без НДС по смете.')+`<div class="day">Позиции сметы</div><div class="est"><table><thead><tr><th>Наименование</th><th>Кол-во</th><th>Сумма с НДС</th><th>НДС</th><th>Бригада</th><th>Без НДС</th><th>Прибыль</th><th>Прибыль −налог</th></tr></thead><tbody>`+
+    `+pie('Распределение расчёта Нац банк',[['Бригада',N.brig],['НДС',N.vat],['Налог 10%',N.tax],['Прибыль',N.prof]],'Доли от суммы с НДС по смете.')+`<div class="day">Позиции сметы</div><div class="est"><table><thead><tr><th>Наименование</th><th>Кол-во</th><th>Сумма с НДС</th><th>НДС</th><th>Бригада</th><th>Без НДС</th><th>Прибыль</th><th>Прибыль −налог</th></tr></thead><tbody>`+
     E.rows.map(r=>{const x=row(r);return `<tr><td>${esc(r[0])} · ${esc(r[1])}</td><td class="num">${new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2}).format(r[2])} м³</td><td class="num">${fmt0(x.g)}</td><td class="num">${fmt0(x.vat)}</td><td class="num">${fmt0(x.br)}</td><td class="num">${fmt0(x.net)}</td><td class="num ${x.pr<0?'out':''}">${fmt0(x.pr)}</td><td class="num ${x.after<0?'out':''}">${fmt0(x.after)}</td></tr>`}).join('')+
     `</tbody><tfoot><tr><td>Итого</td><td></td><td class="num">${fmt0(N.gross)}</td><td class="num">${fmt0(N.vat)}</td><td class="num">${fmt0(N.brig)}</td><td class="num">${fmt0(N.net)}</td><td class="num">${fmt0(N.diff)}</td><td class="num">${fmt0(N.prof)}</td></tr></tfoot></table></div>`;
   }
