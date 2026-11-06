@@ -323,15 +323,15 @@ function renderCalc(){
     <div class="kv"><span>Сумма с НДС</span><b class="num">${fmt(T.vat)}</b></div>
     <div class="kv"><span>НДС (отдельно)</span><b class="num" style="color:var(--warn)">${fmt(T.nds)}</b></div>
     <div class="kv"><span>Сумма без НДС</span><span class="num">${fmt(T.net)}</span></div>
+    <div class="kv"><span>Налог 10% от суммы без НДС</span><span class="num out">${fmt(T.ten)}</span></div>
     <div class="kv"><span>Бригада</span><span class="num out">${fmt(T.brig)}</span></div>
-    <div class="kv"><span>Наша прибыль</span><b class="num in">${fmt(T.pr)}</b></div>
-    <div class="kv"><span>Минус 10%</span><span class="num out">${fmt(T.ten)}</span></div>
-    <div class="kv"><span>Прибыль −10%</span><span class="num in">${fmt(T.prn)}</span></div>
+    <div class="kv"><span>Всего вычетов (НДС + налог + бригада)</span><b class="num out">${fmt(T.nds+T.ten+T.brig)}</b></div>
+    <div class="kv"><span>Прибыль (чистая)</span><span class="num in">${fmt(T.prn)}</span></div>
     <div class="kv"><span>Планируемые расходы</span><span class="num" style="color:var(--warn)">−${fmt(planned('БОК'))}</span></div>
     <div class="kv"><span>Прибыль после плана</span><b class="num ${T.prn-planned('БОК')<0?'out':'in'}">${fmt(T.prn-planned('БОК'))}</b></div>
     <div class="kv"><span>Фактические расходы</span><span class="num out">${fmt(t.o)}</span></div>
     <div class="kv"><span>Остаток прибыли (после плана и факта)</span><b class="num ${T.prn-planned('БОК')-t.o<0?'out':'in'}">${fmt(T.prn-planned('БОК')-t.o)}</b></div></div>
-    `+pie('Распределение расчёта БОК',[['Бригада',T.brig],['Удержание 10%',T.ten],['Прибыль −10%',T.prn]],'Доли от суммы без НДС по смете.')+`<div class="day">Позиции сметы</div><div class="est"><table><thead><tr><th>Наименование</th><th>Кол-во</th><th>Сумма с НДС</th><th>НДС</th><th>Бригада</th><th>Без НДС</th><th>Прибыль</th><th>Прибыль −10%</th></tr></thead><tbody>`+
+    `+pie('Распределение расчёта БОК',[['Бригада',T.brig],['НДС',T.nds],['Налог 10%',T.ten],['Прибыль',T.prn]],'Доли от суммы с НДС по смете.')+`<div class="day">Позиции сметы</div><div class="est"><table><thead><tr><th>Наименование</th><th>Кол-во</th><th>Сумма с НДС</th><th>НДС</th><th>Бригада</th><th>Без НДС</th><th>Прибыль</th><th>Прибыль −налог</th></tr></thead><tbody>`+
     R.map(r=>`<tr><td>${esc(r[0])}</td><td class="num">${fmt0(r[2])} ${esc(r[1]||'')}</td><td class="num">${fmt0(r[4])}</td><td class="num">${fmt0(r[7])}</td><td class="num">${fmt0(r[6])}</td><td class="num">${fmt0(r[8])}</td><td class="num ${r[9]<0?'out':''}">${fmt0(r[9])}</td><td class="num ${r[11]<0?'out':''}">${fmt0(r[11])}</td></tr>`).join('')+
     `</tbody><tfoot><tr><td>Итого</td><td></td><td class="num">${fmt0(T.vat)}</td><td class="num">${fmt0(T.nds)}</td><td class="num">${fmt0(T.brig)}</td><td class="num">${fmt0(T.net)}</td><td class="num">${fmt0(T.pr)}</td><td class="num">${fmt0(T.prn)}</td></tr></tfoot></table></div>`;
   }else{
