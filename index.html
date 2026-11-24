@@ -54,6 +54,11 @@ h1{font-size:15px;font-weight:600;margin:0;letter-spacing:.06em;text-transform:u
 .vsg button{border:0;background:none;padding:8px;font-weight:600;color:var(--muted)}
 .vsg button[aria-pressed="true"].y{background:var(--in);color:#000}
 .vsg button[aria-pressed="true"].no{background:var(--out);color:#000}
+.row.big{padding-block:16px;background:var(--bg);border-bottom:1px solid var(--accent)}
+.row.big .t{font-size:18px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--accent)}
+.row.big .a{font-size:20px;font-weight:600}
+.chk{display:flex;gap:8px;align-items:center;color:var(--ink);font-size:14px}
+.chk input{width:auto}
 .pot{margin:14px 0 0}
 .bal{font-size:13px;color:var(--muted);margin-top:6px}
 .bal b{font-family:var(--mono)}
@@ -174,7 +179,7 @@ function render(){
     l.forEach(e=>{
       if(e.date!==last){if(open)h+='</div>';h+=`<div class="day">${dayLabel(e.date)}</div><div class="list">`;last=e.date;open=true}
       const sign=e.kind==='income'?'+':'−';
-      h+=`<button class="row" data-id="${esc(e.id)}"><div class="l"><div class="t">${esc(e.party||e.category||'Без названия')}</div><div class="s"><span class="tag">${esc(e.docType||'Прочее')}</span>${esc(e.company)} · ${esc(e.category||'')}${e.note?' · '+esc(e.note):''}${A&&A.map[e.id]!==undefined?` · удержано ${fmt(A.map[e.id])}, к оплате ${fmt((+e.amount||0)-A.map[e.id])}`:''}</div></div><div class="a num ${e.kind==='income'?'in':'out'}">${sign}${fmt(+e.amount||0)}</div></button>`;
+      h+=`<button class="row${e.big?' big':''}" data-id="${esc(e.id)}"><div class="l"><div class="t">${esc(e.party||e.category||'Без названия')}</div><div class="s"><span class="tag">${esc(e.docType||'Прочее')}</span>${esc(e.company)} · ${esc(e.category||'')}${e.note?' · '+esc(e.note):''}${A&&A.map[e.id]!==undefined?` · удержано ${fmt(A.map[e.id])}, к оплате ${fmt((+e.amount||0)-A.map[e.id])}`:''}</div></div><div class="a num ${e.kind==='income'?'in':'out'}">${sign}${fmt(+e.amount||0)}</div></button>`;
     });
     if(open)h+='</div>';
   }
@@ -376,6 +381,7 @@ function openSheet(e,pre){
     <label for="f-party">Контрагент</label><input id="f-party" autocomplete="off" value="${esc(x.party)}" placeholder="Магазин, поставщик, заказчик">
     <label for="f-cat">Статья</label><select id="f-cat">${opt(CATS,x.category)}</select>
     <label for="f-note">Комментарий</label><textarea id="f-note" rows="2">${esc(x.note)}</textarea>
+    <label class="chk" for="f-big"><input type="checkbox" id="f-big"${x.big?' checked':''}> Выделить крупными буквами</label>
     <div class="err" id="err"></div>
     <div class="act">${e?'<button type="button" class="del" id="del">Удалить</button>':''}<button type="button" id="cancel">Отмена</button><button type="submit" class="ok">Сохранить</button></div>
   </form></div>`;
@@ -399,7 +405,7 @@ async function save(){
   const amount=parseFloat($('f-amount').value.replace(/\s/g,'').replace(',','.'));
   if(!(amount>0)){$('err').textContent='Введите сумму больше нуля.';return}
   if(!S.db){$('err').textContent='Хранилище недоступно. Войдите в аккаунт Claude и откройте страницу снова.';return}
-  const d={project:$('f-project').value,kind:S.sheet.kind,amount,company:$('f-company').value,date:$('f-date').value||today(),docType:$('f-doc').value,party:$('f-party').value.trim(),category:$('f-cat').value,note:$('f-note').value.trim()};
+  const d={project:$('f-project').value,kind:S.sheet.kind,amount,company:$('f-company').value,date:$('f-date').value||today(),docType:$('f-doc').value,party:$('f-party').value.trim(),category:$('f-cat').value,note:$('f-note').value.trim(),big:$('f-big').checked};
   try{
     if(S.sheet.id)await S.db.collection('entries').doc(S.sheet.id).update(d);
     else await S.db.collection('entries').add({...d,createdAt:Date.now()});
