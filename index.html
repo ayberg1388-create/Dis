@@ -321,14 +321,12 @@ function nbCube(){
   const E=EST_NB,rs=E.rows.filter(r=>r[1]==='Ростверк');if(!rs.length)return '';
   const price=rs[0][3],brig=rs[0][4],vol=rs.reduce((a,r)=>a+r[2],0),
     guar=price*E.guar,vat=price*E.vat/(1+E.vat),net=price-vat,tax=net*E.tax,
-    pr=price-guar-vat-brig,prT=pr-tax,row=(l,v,c)=>`<div class="kv"><span>${l}</span><span class="num ${c||''}">${v}</span></div>`;
+    pr=price-guar-vat-brig-tax,row=(l,v,c)=>`<div class="kv"><span>${l}</span><span class="num ${c||''}">${v}</span></div>`;
   return `<div class="co"><h3>Расчёт за 1 м³ · фундамент (ростверк)</h3>
-    ${row('Цена за 1 м³ (с НДС)',fmt(price))}${row('− Гарантия '+E.guar*100+'%','−'+fmt(guar),'out')}${row('− НДС '+E.vat*100+'% (из цены)','−'+fmt(vat),'out')}${row('− Бригада','−'+fmt(brig),'out')}
+    ${row('Цена за 1 м³ (с НДС)',fmt(price))}${row('− Гарантия '+E.guar*100+'%','−'+fmt(guar),'out')}${row('− Вывод '+E.tax*100+'% (от цены без НДС)','−'+fmt(tax),'out')}${row('− НДС '+E.vat*100+'% (из цены)','−'+fmt(vat),'out')}${row('− Бригада','−'+fmt(brig),'out')}
     <div class="kv"><span>= Мой заработок за 1 м³</span><b class="num in">${fmt(pr)}</b></div>
-    ${row('− Налог '+E.tax*100+'% (от цены без НДС)','−'+fmt(tax),'out')}
-    <div class="kv"><span>= После налога за 1 м³</span><b class="num in">${fmt(prT)}</b></div>
     <div class="day" style="margin:10px 0 4px">На весь объём ${nf2(vol)} м³</div>
-    ${row('Заработок без налога',fmt(pr*vol),'in')}${row('Заработок после налога',fmt(prT*vol),'in')}</div>`;
+    <div class="kv"><span>Заработок</span><b class="num in">${fmt(pr*vol)}</b></div></div>`;
 }
 function nbCube2(){
   const E=EST_NB,rs=E.rows.filter(r=>['Колонны','Стены','Плиты перекрытия'].includes(r[1]));if(!rs.length)return '';
